@@ -4,6 +4,9 @@ export type TileType = 'floor' | 'wall' | 'destructible_wall' | 'destructible';
 export type ActionMode = 'move' | 'shoot' | 'overwatch' | 'grenade' | null;
 export type GamePhase = 'player' | 'enemy' | 'animating' | 'victory' | 'defeat';
 
+/** sequential — по одному юниту; simultaneous — весь отряд параллельно за фазу */
+export type TurnMode = 'sequential' | 'simultaneous';
+
 export interface Position {
   x: number;
   y: number;

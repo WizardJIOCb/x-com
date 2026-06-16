@@ -372,6 +372,19 @@ body {
   margin-left: auto;
 }
 
+.btn-mode {
+  background: #152030;
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-mode.active {
+  background: #1a3050;
+  border-color: #5ee8ff;
+  color: #5ee8ff;
+}
+
 .btn-auto {
   background: #1a2838;
   border-color: var(--warning);

@@ -13,6 +13,7 @@ export class HUD {
   private unitPanel: HTMLElement;
   private logPanel: HTMLElement;
   private endTurnBtn: HTMLButtonElement;
+  private turnModeBtn: HTMLButtonElement;
   private autoBattleBtn: HTMLButtonElement;
   private overlay: HTMLElement;
   private overlayTitle: HTMLElement;
@@ -26,6 +27,7 @@ export class HUD {
   private onActionMode: ((mode: ActionMode) => void) | null = null;
   private onSelectUnit: ((unit: Unit) => void) | null = null;
   private onOverwatch: (() => void) | null = null;
+  private onToggleTurnMode: (() => void) | null = null;
 
   private lastHudState = '';
   private _battle: Battle | null = null;
@@ -42,6 +44,7 @@ export class HUD {
     this.combatLog = document.getElementById('combat-log')!;
     this.missionInfo = document.getElementById('mission-info')!;
     this.endTurnBtn = document.getElementById('btn-end-turn') as HTMLButtonElement;
+    this.turnModeBtn = document.getElementById('btn-turn-mode') as HTMLButtonElement;
     this.autoBattleBtn = document.getElementById('btn-auto-battle') as HTMLButtonElement;
     this.overlay = document.getElementById('overlay')!;
     this.overlayTitle = document.getElementById('overlay-title')!;
@@ -50,6 +53,7 @@ export class HUD {
     this.mobileDock = document.getElementById('mobile-dock');
 
     this.endTurnBtn.addEventListener('click', () => this.onEndTurn?.());
+    this.turnModeBtn.addEventListener('click', () => this.onToggleTurnMode?.());
     this.autoBattleBtn.addEventListener('click', () => this.onAutoBattle?.());
     this.overlayBtn.addEventListener('click', () => {
       this.overlay.classList.add('hidden');
@@ -120,6 +124,7 @@ export class HUD {
     onActionMode: (mode: ActionMode) => void;
     onSelectUnit: (unit: Unit) => void;
     onOverwatch: () => void;
+    onToggleTurnMode: () => void;
   }): void {
     this.onEndTurn = callbacks.onEndTurn;
     this.onAutoBattle = callbacks.onAutoBattle;
@@ -127,6 +132,7 @@ export class HUD {
     this.onActionMode = callbacks.onActionMode;
     this.onSelectUnit = callbacks.onSelectUnit;
     this.onOverwatch = callbacks.onOverwatch;
+    this.onToggleTurnMode = callbacks.onToggleTurnMode;
   }
 
   update(battle: Battle): void {
@@ -134,6 +140,8 @@ export class HUD {
     const stateKey = JSON.stringify({
       phase: battle.phase,
       anim: battle.isAnimating,
+      turnMode: battle.turnMode,
+      busy: battle.hasBusyAnimations,
       auto: battle.autoBattle,
       turn: battle.turnNumber,
       sel: battle.selectedUnit?.id,
@@ -162,14 +170,15 @@ export class HUD {
     const aliens = battle.aliveAliens.length;
     const phase = battle.phase === 'player' ? 'Ход XCOM' : battle.phase === 'enemy' ? 'Ход пришельцев' : '';
     const autoTag = battle.autoBattle ? ' · 🤖' : '';
+    const modeTag = battle.turnMode === 'simultaneous' ? ' · ⚡Параллель' : '';
 
     if (this.isMobile) {
-      this.missionInfo.textContent = `R${battle.turnNumber} · ${phase}${autoTag} · 👤${alive} 👾${aliens}`;
+      this.missionInfo.textContent = `R${battle.turnNumber} · ${phase}${modeTag}${autoTag} · 👤${alive} 👾${aliens}`;
       return;
     }
 
     this.missionInfo.textContent =
-      `Раунд ${battle.turnNumber} · ${phase}${autoTag} · Карта 50×38 · Солдаты: ${alive} · Пришельцы: ${aliens}`;
+      `Раунд ${battle.turnNumber} · ${phase}${modeTag}${autoTag} · Карта 50×38 · Солдаты: ${alive} · Пришельцы: ${aliens}`;
   }
 
   private renderSquadPanel(battle: Battle): void {
@@ -266,17 +275,30 @@ export class HUD {
   private renderActionBar(battle: Battle): void {
     this.actionBar.innerHTML = '';
     const unit = battle.selectedUnit;
-    const isPlayerTurn = battle.phase === 'player' && !battle.isAnimating;
+    const isPlayerTurn = battle.phase === 'player';
     const battleOver = battle.phase === 'victory' || battle.phase === 'defeat';
+    const unitBusy = unit ? battle.animatingUnits.has(unit.id) : false;
+    const canActUnit = isPlayerTurn && !battle.autoBattle && unit && !unitBusy &&
+      (battle.turnMode === 'sequential' ? !battle.isAnimating : true);
 
-    this.endTurnBtn.disabled = !isPlayerTurn || battle.autoBattle;
+    this.endTurnBtn.disabled = !isPlayerTurn || battle.autoBattle || battle.hasBusyAnimations;
     this.autoBattleBtn.disabled = battleOver;
     this.autoBattleBtn.classList.toggle('active', battle.autoBattle);
     this.autoBattleBtn.textContent = battle.autoBattle ? '⏹ Стоп' : '⚡ Автобой';
 
-    if (!unit || !isPlayerTurn) {
+    const isParallel = battle.turnMode === 'simultaneous';
+    this.turnModeBtn.disabled = battleOver || battle.autoBattle || battle.hasBusyAnimations;
+    this.turnModeBtn.classList.toggle('active', isParallel);
+    this.turnModeBtn.textContent = isParallel ? '⚡ Параллель' : '🔄 По очереди';
+    this.turnModeBtn.title = isParallel
+      ? 'Параллельный режим — все действуют одновременно'
+      : 'Классический режим — по одному солдату';
+
+    if (!unit || !isPlayerTurn || battle.autoBattle) {
       const msg = battle.autoBattle
         ? '<span style="color:var(--warning);font-size:13px">🤖 Автобой — тактические решения...</span>'
+        : battle.hasBusyAnimations && battle.turnMode === 'simultaneous'
+          ? '<span style="color:var(--accent);font-size:13px">⚡ Юниты выполняют действия...</span>'
         : battle.isAnimating
           ? '<span style="color:var(--accent);font-size:13px">⚡ Анимация...</span>'
           : '<span style="color:var(--text-dim);font-size:13px">Ожидание...</span>';
@@ -285,10 +307,10 @@ export class HUD {
     }
 
     const actions: { mode: ActionMode; label: string; short: string; disabled: boolean }[] = [
-      { mode: 'move', label: '↔ Движение', short: '↔', disabled: unit.actionPoints < 1 || battle.isAnimating },
-      { mode: 'shoot', label: '◎ Стрельба', short: '◎', disabled: unit.actionPoints < 1 || unit.hasActed || battle.isAnimating },
-      { mode: 'overwatch', label: '👁 Дозор', short: '👁', disabled: unit.actionPoints < 1 || unit.hasActed || battle.isAnimating },
-      { mode: 'grenade', label: '💣 Граната', short: '💣', disabled: unit.actionPoints < 1 || unit.hasActed || battle.isAnimating },
+      { mode: 'move', label: '↔ Движение', short: '↔', disabled: unit.actionPoints < 1 || !canActUnit },
+      { mode: 'shoot', label: '◎ Стрельба', short: '◎', disabled: unit.actionPoints < 1 || unit.hasActed || !canActUnit },
+      { mode: 'overwatch', label: '👁 Дозор', short: '👁', disabled: unit.actionPoints < 1 || unit.hasActed || !canActUnit },
+      { mode: 'grenade', label: '💣 Граната', short: '💣', disabled: unit.actionPoints < 1 || unit.hasActed || !canActUnit },
     ];
 
     for (const action of actions) {

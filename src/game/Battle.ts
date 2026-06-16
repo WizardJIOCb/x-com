@@ -1,4 +1,4 @@
-import type { ActionMode, CombatLogEntry, GamePhase, Position, Unit } from '../types';
+import type { ActionMode, CombatLogEntry, GamePhase, Position, TurnMode, Unit } from '../types';
 import {
   applyDamage,
   getTilesInBlast,
@@ -16,6 +16,7 @@ export class Battle {
   soldiers: Unit[];
   aliens: Unit[];
   phase: GamePhase = 'player';
+  turnMode: TurnMode = 'sequential';
   selectedUnit: Unit | null = null;
   actionMode: ActionMode = null;
   combatLog: CombatLogEntry[] = [];
@@ -24,6 +25,8 @@ export class Battle {
   hoveredTile: Position | null = null;
   animations: AnimationManager | null = null;
   isAnimating = false;
+  animatingUnits = new Set<string>();
+  pendingDestinations = new Map<string, Position>();
   autoBattle = false;
   private autoBattleRunning = false;
 
@@ -60,11 +63,65 @@ export class Battle {
   }
 
   get canInteract(): boolean {
-    return this.phase === 'player' && !this.isAnimating && !this.autoBattle;
+    return this.phase === 'player' && !this.autoBattle;
+  }
+
+  get hasBusyAnimations(): boolean {
+    return this.turnMode === 'simultaneous'
+      ? this.animatingUnits.size > 0
+      : this.isAnimating;
   }
 
   private canExecutePlayerAction(): boolean {
-    return this.phase === 'player' && !this.isAnimating;
+    if (this.phase !== 'player') return false;
+    if (this.turnMode === 'sequential' && this.isAnimating) return false;
+    if (this.turnMode === 'simultaneous' && this.selectedUnit && this.animatingUnits.has(this.selectedUnit.id)) {
+      return false;
+    }
+    return true;
+  }
+
+  private canSelectedUnitAct(): boolean {
+    return this.canExecutePlayerAction() && !!this.selectedUnit;
+  }
+
+  toggleTurnMode(): void {
+    if (this.autoBattle || this.phase === 'victory' || this.phase === 'defeat') return;
+    if (this.hasBusyAnimations) return;
+
+    this.turnMode = this.turnMode === 'sequential' ? 'simultaneous' : 'sequential';
+    this.log(
+      this.turnMode === 'simultaneous'
+        ? 'Режим: параллельный — весь отряд действует одновременно за фазу.'
+        : 'Режим: по очереди — один солдат за раз.',
+      'info'
+    );
+    this.notify();
+  }
+
+  occupiedForUnit(unit: Unit): Set<string> {
+    const occupied = this.occupiedTiles;
+    occupied.delete(`${unit.position.x},${unit.position.y}`);
+    for (const [uid, pos] of this.pendingDestinations) {
+      if (uid !== unit.id) occupied.add(`${pos.x},${pos.y}`);
+    }
+    return occupied;
+  }
+
+  private beginUnitAnimation(unitId: string): void {
+    if (this.turnMode === 'simultaneous') {
+      this.animatingUnits.add(unitId);
+    } else {
+      this.isAnimating = true;
+    }
+  }
+
+  private endUnitAnimation(unitId: string): void {
+    if (this.turnMode === 'simultaneous') {
+      this.animatingUnits.delete(unitId);
+    } else {
+      this.isAnimating = false;
+    }
   }
 
   selectFirstAvailableSoldier(): void {
@@ -88,7 +145,7 @@ export class Battle {
   }
 
   setActionMode(mode: ActionMode): void {
-    if (!this.selectedUnit || !this.canInteract) return;
+    if (!this.selectedUnit || !this.canSelectedUnitAct()) return;
     this.actionMode = mode;
     this.movePath = [];
     this.notify();
@@ -96,12 +153,10 @@ export class Battle {
 
   getReachableTiles(): Position[] {
     if (!this.selectedUnit) return [];
-    const occupied = this.occupiedTiles;
-    occupied.delete(`${this.selectedUnit.position.x},${this.selectedUnit.position.y}`);
     return this.grid.getReachableTiles(
       this.selectedUnit.position,
       this.selectedUnit.mobility,
-      occupied
+      this.occupiedForUnit(this.selectedUnit)
     );
   }
 
@@ -127,7 +182,7 @@ export class Battle {
     try {
       while (this.autoBattle) {
         if (this.phase === 'victory' || this.phase === 'defeat') break;
-        if (this.isAnimating) {
+        if (this.hasBusyAnimations) {
           await delay(60);
           continue;
         }
@@ -137,30 +192,35 @@ export class Battle {
           continue;
         }
 
-        const soldier = this.aliveSoldiers.find(s => s.actionPoints > 0);
-        if (!soldier) {
+        const active = this.aliveSoldiers.filter(s => s.actionPoints > 0);
+        if (active.length === 0) {
           await this.endPlayerTurn();
           await delay(350);
           continue;
         }
 
-        this.selectedUnit = soldier;
-        const action = planNextSoldierAction(
-          soldier,
-          this.aliens,
-          this.soldiers,
-          this.grid,
-          this.occupiedTiles
-        );
+        if (this.turnMode === 'simultaneous') {
+          await this.runSimultaneousSoldierAutoTurn(active);
+        } else {
+          const soldier = active[0];
+          this.selectedUnit = soldier;
+          const action = planNextSoldierAction(
+            soldier,
+            this.aliens,
+            this.soldiers,
+            this.grid,
+            this.occupiedTiles
+          );
 
-        if (!action || action.type === 'wait') {
-          soldier.actionPoints = 0;
-          this.notify();
-          continue;
+          if (!action || action.type === 'wait') {
+            soldier.actionPoints = 0;
+            this.notify();
+            continue;
+          }
+
+          await this.executeSoldierAIAction(action);
+          await delay(280);
         }
-
-        await this.executeSoldierAIAction(action);
-        await delay(280);
 
         if (this.allSoldiersDone() && this.phase === 'player') {
           await delay(200);
@@ -174,6 +234,46 @@ export class Battle {
         this.autoBattle = false;
       }
       this.notify();
+    }
+  }
+
+  private async runSimultaneousSoldierAutoTurn(active: Unit[]): Promise<void> {
+    const simOccupied = this.occupiedTiles;
+    const actions: AIAction[] = [];
+
+    for (const soldier of active) {
+      const action = planNextSoldierAction(
+        soldier,
+        this.aliens,
+        this.soldiers,
+        this.grid,
+        simOccupied
+      );
+
+      if (!action || action.type === 'wait') {
+        soldier.actionPoints = 0;
+        continue;
+      }
+
+      actions.push(action);
+      this.reserveSimulatedAction(action, simOccupied);
+    }
+
+    if (actions.length === 0) {
+      this.notify();
+      return;
+    }
+
+    await Promise.all(actions.map(a => this.executeSoldierAIAction(a)));
+    await delay(200);
+    this.notify();
+  }
+
+  private reserveSimulatedAction(action: AIAction, simOccupied: Set<string>): void {
+    if (action.type === 'move' && action.endPos) {
+      const pos = action.unit.position;
+      simOccupied.delete(`${pos.x},${pos.y}`);
+      simOccupied.add(`${action.endPos.x},${action.endPos.y}`);
     }
   }
 
@@ -192,7 +292,7 @@ export class Battle {
   }
 
   async handleTileClick(pos: Position): Promise<void> {
-    if (!this.canInteract || !this.selectedUnit) return;
+    if (!this.canInteract || !this.selectedUnit || !this.canSelectedUnitAct()) return;
 
     if (this.actionMode === 'move') {
       await this.tryMove(pos);
@@ -209,17 +309,18 @@ export class Battle {
   }
 
   handleTileHover(pos: Position | null): void {
-    if (!this.canInteract) return;
+    if (!this.canInteract || !this.canSelectedUnitAct()) return;
     this.hoveredTile = pos;
     if (pos && this.actionMode === 'move' && this.selectedUnit) {
-      const occupied = this.occupiedTiles;
-      occupied.delete(`${this.selectedUnit.position.x},${this.selectedUnit.position.y}`);
-      const path = this.grid.findPath(this.selectedUnit.position, pos, occupied);
+      const path = this.grid.findPath(
+        this.selectedUnit.position,
+        pos,
+        this.occupiedForUnit(this.selectedUnit)
+      );
       this.movePath = path ?? [];
     } else {
       this.movePath = [];
     }
-    // Не вызываем notify — hover обновляется каждый кадр в render loop
   }
 
   private async tryMove(dest: Position): Promise<void> {
@@ -227,13 +328,13 @@ export class Battle {
     const reachable = this.getReachableTiles();
     if (!reachable.some(p => p.x === dest.x && p.y === dest.y)) return;
 
-    const occupied = this.occupiedTiles;
-    occupied.delete(`${unit.position.x},${unit.position.y}`);
+    const occupied = this.occupiedForUnit(unit);
     const path = this.grid.findPath(unit.position, dest, occupied);
     if (!path || path.length <= 1) return;
     if (unit.actionPoints < 1) return;
 
-    this.isAnimating = true;
+    this.beginUnitAnimation(unit.id);
+    this.pendingDestinations.set(unit.id, dest);
     this.actionMode = null;
     this.movePath = [];
 
@@ -245,8 +346,9 @@ export class Battle {
     unit.actionPoints -= 1;
     unit.hasMoved = true;
 
+    this.pendingDestinations.delete(unit.id);
     this.log(`${unit.name} перемещается.`, 'info');
-    this.isAnimating = false;
+    this.endUnitAnimation(unit.id);
     this.checkAutoEndUnit();
     this.notify();
   }
@@ -260,7 +362,7 @@ export class Battle {
 
     resolveRayUnitHits(shooter, ray.hits, this.grid);
 
-    this.isAnimating = true;
+    this.beginUnitAnimation(shooter.id);
     this.actionMode = null;
 
     if (this.animations) {
@@ -314,12 +416,10 @@ export class Battle {
     if (changedTiles.length > 0) this.onMapChange?.(changedTiles);
 
     if (this.animations) {
-      for (const k of killedUnits) {
-        await this.animations.playDeath(k.id);
-      }
+      await Promise.all(killedUnits.map(k => this.animations!.playDeath(k.id)));
     }
 
-    this.isAnimating = false;
+    this.endUnitAnimation(shooter.id);
     this.checkVictory();
     this.checkAutoEndUnit();
     this.notify();
@@ -332,7 +432,7 @@ export class Battle {
     const dist = this.grid.manhattan(unit.position, pos);
     if (dist > 8) return;
 
-    this.isAnimating = true;
+    this.beginUnitAnimation(unit.id);
     this.actionMode = null;
 
     if (this.animations) {
@@ -371,12 +471,10 @@ export class Battle {
     if (changedTiles.length > 0) this.onMapChange?.(changedTiles);
 
     if (this.animations) {
-      for (const k of killedUnits) {
-        await this.animations.playDeath(k.id);
-      }
+      await Promise.all(killedUnits.map(k => this.animations!.playDeath(k.id)));
     }
 
-    this.isAnimating = false;
+    this.endUnitAnimation(unit.id);
     this.checkVictory();
     this.checkAutoEndUnit();
     this.notify();
@@ -386,7 +484,7 @@ export class Battle {
     const unit = this.selectedUnit!;
     if (unit.actionPoints < 1 || unit.hasActed || !this.canExecutePlayerAction()) return;
 
-    this.isAnimating = true;
+    this.beginUnitAnimation(unit.id);
     unit.isOverwatching = true;
     unit.actionPoints = 0;
     unit.hasActed = true;
@@ -398,12 +496,13 @@ export class Battle {
     }
 
     this.log(`${unit.name} на дозоре.`, 'info');
-    this.isAnimating = false;
+    this.endUnitAnimation(unit.id);
     this.checkAutoEndUnit();
     this.notify();
   }
 
   private checkAutoEndUnit(): void {
+    if (this.turnMode !== 'sequential') return;
     if (this.selectedUnit && this.selectedUnit.actionPoints <= 0) {
       const next = this.soldiers.find(
         s => s.isAlive && s.actionPoints > 0 && s.id !== this.selectedUnit!.id
@@ -417,7 +516,16 @@ export class Battle {
   }
 
   async endPlayerTurn(): Promise<void> {
-    if (this.phase !== 'player' || this.isAnimating) return;
+    if (this.phase !== 'player') return;
+    if (this.turnMode === 'sequential' && this.isAnimating) return;
+
+    while (this.animatingUnits.size > 0) {
+      await delay(50);
+    }
+
+    for (const s of this.aliveSoldiers) {
+      if (s.actionPoints > 0) s.actionPoints = 0;
+    }
 
     await this.checkOverwatchAnimated('alien');
 
@@ -443,7 +551,7 @@ export class Battle {
 
         const result = resolveShot(watcher, target, this.grid, true);
         watcher.isOverwatching = false;
-        this.isAnimating = true;
+        this.beginUnitAnimation(watcher.id);
 
         if (this.animations) {
           await this.animations.playShot(
@@ -465,7 +573,7 @@ export class Battle {
           this.log(`${watcher.name} (дозор) промахивается.`, 'miss');
         }
 
-        this.isAnimating = false;
+        this.endUnitAnimation(watcher.id);
         this.checkVictory();
         if (this.phase !== 'enemy' && this.phase !== 'player') return;
       }
@@ -480,9 +588,14 @@ export class Battle {
       if (alien.isAlive) resetUnitTurn(alien);
     }
 
-    for (const action of actions) {
-      await this.executeAIAction(action);
-      await delay(200);
+    if (this.turnMode === 'simultaneous') {
+      await Promise.all(actions.map(action => this.executeAIAction(action)));
+      await this.checkOverwatchAnimated('soldier');
+    } else {
+      for (const action of actions) {
+        await this.executeAIAction(action);
+        await delay(200);
+      }
     }
 
     this.checkVictory();
@@ -493,7 +606,7 @@ export class Battle {
 
   private async executeAIAction(action: AIAction): Promise<void> {
     if (action.type === 'move' && action.path && action.endPos) {
-      this.isAnimating = true;
+      this.beginUnitAnimation(action.unit.id);
       action.unit.hasMoved = true;
       action.unit.actionPoints = Math.max(0, action.unit.actionPoints - 1);
 
@@ -502,10 +615,10 @@ export class Battle {
       }
       action.unit.position = action.endPos;
       this.log(`${action.unit.name} перемещается.`, 'info');
-      this.isAnimating = false;
+      this.endUnitAnimation(action.unit.id);
       this.notify();
     } else if (action.type === 'shoot' && action.target && action.shotResult) {
-      this.isAnimating = true;
+      this.beginUnitAnimation(action.unit.id);
       const r = action.shotResult;
 
       if (this.animations) {
@@ -534,7 +647,7 @@ export class Battle {
         );
       }
 
-      this.isAnimating = false;
+      this.endUnitAnimation(action.unit.id);
       this.checkVictory();
       this.notify();
     } else if (action.type === 'overwatch') {
@@ -553,7 +666,8 @@ export class Battle {
       if (s.isAlive) resetUnitTurn(s);
     }
     this.phase = 'player';
-    this.log(`--- Ход XCOM (раунд ${this.turnNumber}) ---`, 'info');
+    const modeLabel = this.turnMode === 'simultaneous' ? 'параллельный' : 'по очереди';
+    this.log(`--- Ход XCOM (раунд ${this.turnNumber}, ${modeLabel}) ---`, 'info');
     this.selectFirstAvailableSoldier();
     this.notify();
   }
@@ -589,6 +703,8 @@ export class Battle {
     this.turnNumber = 1;
     this.combatLog = [];
     this.isAnimating = false;
+    this.animatingUnits.clear();
+    this.pendingDestinations.clear();
     this.autoBattle = false;
     this.autoBattleRunning = false;
     this.log('Процедурная карта сгенерирована. Разрушайте стены и укрытия!', 'info');

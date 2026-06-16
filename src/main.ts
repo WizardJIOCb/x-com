@@ -39,6 +39,7 @@ class Game {
         this.battle.selectUnit(unit);
       },
       onOverwatch: () => void this.battle.setOverwatch(),
+      onToggleTurnMode: () => this.battle.toggleTurnMode(),
     });
 
     this.battle.onUpdate = () => this.hud.update(this.battle);
