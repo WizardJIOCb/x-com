@@ -6,8 +6,10 @@ import {
   buildSoldierBrief,
   claimTarget,
   findBestTacticalMove,
+  findRallyMove,
   idealFocusPoint,
   pickSpreadTarget,
+  unitInCombat,
   type TacticalBrief,
 } from './TacticalAI';
 
@@ -37,7 +39,26 @@ export function planNextSoldierAction(
   const brief = buildSoldierBrief(soldiers, aliens, grid);
   const pos = soldier.position;
   const visible = aliveAliens.filter(a => grid.hasLineOfSight(pos, a.position));
+  const inCombat = unitInCombat(soldier, aliveAliens, grid);
   const role = brief.roles.get(soldier.id) ?? 'vanguard';
+
+  // Подмога: бой идёт, а этот солдат далеко и не видит врагов
+  if (
+    brief.contactActive &&
+    !inCombat &&
+    soldier.actionPoints >= 1 &&
+    !soldier.hasMoved
+  ) {
+    const rally = findRallyMove(soldier, brief, grid, occupied);
+    if (rally) {
+      return {
+        type: 'move',
+        unit: soldier,
+        path: rally.path,
+        endPos: rally.endPos,
+      };
+    }
+  }
 
   if (!soldier.hasActed && soldier.actionPoints >= 1) {
     if (soldier.className === 'Heavy') {
@@ -65,12 +86,22 @@ export function planNextSoldierAction(
 
       if (!soldier.hasMoved) {
         const moveShot = findBestShootTile(soldier, pos, target, grid, occupied, brief);
-        if (moveShot && moveShot.hitChance >= 22) {
+        if (moveShot && moveShot.hitChance >= 20) {
           return {
             type: 'move',
             unit: soldier,
             path: moveShot.path,
             endPos: moveShot.endPos,
+          };
+        }
+
+        const advance = findCombatAdvance(soldier, target, brief, grid, occupied);
+        if (advance) {
+          return {
+            type: 'move',
+            unit: soldier,
+            path: advance.path,
+            endPos: advance.endPos,
           };
         }
       }
@@ -84,10 +115,10 @@ export function planNextSoldierAction(
             aimPos: { ...target.position },
           };
         }
-        return { type: 'overwatch', unit: soldier };
-      }
-
-      if (dist <= soldier.weapon.range) {
+        if (inCombat && soldier.hasMoved) {
+          return { type: 'overwatch', unit: soldier };
+        }
+      } else if (dist <= soldier.weapon.range) {
         return {
           type: 'shoot',
           unit: soldier,
@@ -101,7 +132,7 @@ export function planNextSoldierAction(
   if (soldier.actionPoints >= 1 && !soldier.hasMoved) {
     const focusEnemy =
       visible[0] ??
-      (brief.contactActive
+      (brief.contactActive && brief.contactPoint
         ? aliveAliens.reduce((best, a) =>
             grid.manhattan(brief.contactPoint!, a.position) <
             grid.manhattan(brief.contactPoint!, best.position)
@@ -115,7 +146,7 @@ export function planNextSoldierAction(
           ));
 
     const focus = idealFocusPoint(soldier, brief, pos);
-    const rallying = brief.contactActive && visible.length === 0;
+    const rallying = brief.contactActive && !inCombat;
     const advance = findBestTacticalMove(soldier, pos, focus, brief, grid, occupied, {
       preferCover: !rallying && (role === 'sniper' || role === 'anchor'),
       preferLos: visible.length > 0,
@@ -124,6 +155,7 @@ export function planNextSoldierAction(
         : focusEnemy.position,
       range: soldier.weapon.range,
       minimizeDist: rallying || role === 'vanguard' || role === 'flanker',
+      rallying,
     });
 
     if (advance) {
@@ -136,11 +168,27 @@ export function planNextSoldierAction(
     }
   }
 
-  if (!soldier.hasActed && soldier.actionPoints >= 1) {
+  if (!soldier.hasActed && soldier.actionPoints >= 1 && inCombat) {
     return { type: 'overwatch', unit: soldier };
   }
 
   return { type: 'wait', unit: soldier };
+}
+
+function findCombatAdvance(
+  soldier: Unit,
+  target: Unit,
+  brief: TacticalBrief,
+  grid: Grid,
+  occupied: Set<string>
+) {
+  const focus = idealFocusPoint(soldier, brief, soldier.position);
+  return findBestTacticalMove(soldier, soldier.position, focus, brief, grid, occupied, {
+    preferLos: true,
+    losTarget: target.position,
+    range: soldier.weapon.range,
+    minimizeDist: true,
+  });
 }
 
 export function planAlienTurn(
@@ -167,7 +215,25 @@ export function planAlienTurn(
 
     const pos = simPos.get(alien.id)!;
     const role = brief.roles.get(alien.id) ?? 'vanguard';
+    const inCombat = unitInCombat(alien, aliveSoldiers, grid);
     const visibleSoldiers = aliveSoldiers.filter(s => grid.hasLineOfSight(pos, s.position));
+
+    // Подмога союзникам в бою
+    if (brief.contactActive && !inCombat) {
+      const rally = findRallyMove(alien, brief, grid, simOccupied);
+      if (rally) {
+        simOccupied.delete(`${pos.x},${pos.y}`);
+        simOccupied.add(`${rally.endPos.x},${rally.endPos.y}`);
+        simPos.set(alien.id, rally.endPos);
+        actions.push({
+          type: 'move',
+          unit: alien,
+          path: rally.path,
+          endPos: rally.endPos,
+        });
+        continue;
+      }
+    }
 
     if (visibleSoldiers.length > 0) {
       const bestTarget = pickSpreadTarget(alien, visibleSoldiers, targetClaims);
@@ -192,7 +258,8 @@ export function planAlienTurn(
         brief,
         grid,
         simOccupied,
-        true
+        true,
+        false
       );
 
       if (moveAndShoot) {
@@ -223,7 +290,7 @@ export function planAlienTurn(
       }
     }
 
-    const rallying = brief.contactActive && visibleSoldiers.length === 0;
+    const rallying = brief.contactActive && !inCombat;
     const nearest = rallying && brief.contactPoint
       ? aliveSoldiers.reduce((best, s) =>
           grid.manhattan(brief.contactPoint!, s.position) <
@@ -283,6 +350,7 @@ function findAlienTacticalMove(
     losTarget: rallying && brief.contactPoint ? brief.contactPoint : target.position,
     range: unit.weapon.range,
     minimizeDist: rallying || role === 'vanguard' || role === 'flanker',
+    rallying,
   });
 
   if (!move) return null;

@@ -62,17 +62,44 @@ function roleForAlien(unit: Unit, index: number): SquadRole {
   }
 }
 
+export function unitInCombat(unit: Unit, enemies: Unit[], grid: Grid): boolean {
+  return enemies.some(e => e.isAlive && grid.hasLineOfSight(unit.position, e.position));
+}
+
 function computeContactPoint(
   friendlies: Unit[],
   enemies: Unit[],
   grid: Grid
 ): Position | null {
+  const aliveEnemies = enemies.filter(e => e.isAlive);
+  const combatFriendlies = friendlies.filter(f =>
+    f.isAlive && unitInCombat(f, aliveEnemies, grid)
+  );
+
+  if (combatFriendlies.length > 0) {
+    const allyCenter = centroid(combatFriendlies);
+    let nearest = aliveEnemies[0];
+    let nearestDist = Infinity;
+    for (const e of aliveEnemies) {
+      const d = grid.manhattan(allyCenter, e.position);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = e;
+      }
+    }
+    return {
+      x: Math.round((allyCenter.x + nearest.position.x) / 2),
+      y: Math.round((allyCenter.y + nearest.position.y) / 2),
+    };
+  }
+
   let sx = 0;
   let sy = 0;
   let count = 0;
 
   for (const f of friendlies) {
-    for (const e of enemies) {
+    if (!f.isAlive) continue;
+    for (const e of aliveEnemies) {
       if (!grid.hasLineOfSight(f.position, e.position)) continue;
       sx += (f.position.x + e.position.x) * 0.5;
       sy += (f.position.y + e.position.y) * 0.5;
@@ -223,6 +250,7 @@ export function scoreMoveTile(
     losTarget?: Position;
     range?: number;
     minimizeDist?: boolean;
+    rallying?: boolean;
   } = {}
 ): number {
   const path = grid.findPath(from, tile, occupied);
@@ -230,6 +258,17 @@ export function scoreMoveTile(
 
   const role = brief.roles.get(unit.id) ?? 'vanguard';
   const pathSteps = path.length - 1;
+
+  if (opts.rallying && brief.contactPoint) {
+    const pathHere = grid.pathDistance(tile, brief.contactPoint, occupied);
+    const pathFrom = grid.pathDistance(from, brief.contactPoint, occupied);
+    let score = (pathFrom - pathHere) * 55 - pathHere * 4 - pathSteps * 0.25;
+    if (pathHere < pathFrom) score += 45;
+    else if (pathHere > pathFrom) score -= 50;
+    score -= occupied.has(posKey(tile)) ? 500 : 0;
+    return score;
+  }
+
   const distToFocus = grid.manhattan(tile, focus);
   const cover = grid.getCoverAt(tile);
   const coverScore =
@@ -270,9 +309,9 @@ export function scoreMoveTile(
   if (brief.contactActive && brief.contactPoint) {
     const pathHere = grid.pathDistance(tile, brief.contactPoint, occupied);
     const pathFrom = grid.pathDistance(from, brief.contactPoint, occupied);
-    if (pathHere < pathFrom) score += 40;
-    else if (pathHere > pathFrom) score -= 35;
-    score -= pathHere * 1.8;
+    if (pathHere < pathFrom) score += 55;
+    else if (pathHere > pathFrom) score -= 45;
+    score -= pathHere * 2.5;
   }
 
   score -= pathSteps * 0.35;
@@ -294,6 +333,7 @@ export function findBestTacticalMove(
     losTarget?: Position;
     range?: number;
     minimizeDist?: boolean;
+    rallying?: boolean;
   } = {}
 ): MoveCandidate | null {
   const reachable = grid.getReachableTiles(from, unit.mobility, occupied);
@@ -311,6 +351,31 @@ export function findBestTacticalMove(
   }
 
   return best;
+}
+
+/** Подтягивание к точке боя, если союзники уже вступили в контакт */
+export function findRallyMove(
+  unit: Unit,
+  brief: TacticalBrief,
+  grid: Grid,
+  occupied: Set<string>
+): MoveCandidate | null {
+  if (!brief.contactActive || !brief.contactPoint) return null;
+  return findBestTacticalMove(
+    unit,
+    unit.position,
+    brief.contactPoint,
+    brief,
+    grid,
+    occupied,
+    {
+      rallying: true,
+      minimizeDist: true,
+      preferCover: false,
+      preferLos: false,
+      losTarget: brief.contactPoint,
+    }
+  );
 }
 
 export function pickSpreadTarget(

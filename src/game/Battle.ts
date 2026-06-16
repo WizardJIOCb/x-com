@@ -16,7 +16,7 @@ export class Battle {
   soldiers: Unit[];
   aliens: Unit[];
   phase: GamePhase = 'player';
-  turnMode: TurnMode = 'sequential';
+  turnMode: TurnMode = 'simultaneous';
   selectedUnit: Unit | null = null;
   actionMode: ActionMode = null;
   combatLog: CombatLogEntry[] = [];
