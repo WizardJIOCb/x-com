@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Position, ShotRayHit, Unit } from '../types';
 import { gridToWorld, movementYaw } from './Coords3D';
+import { UnitRagdollManager } from './UnitRagdoll';
+import { UnitRigAnimator } from './UnitRigAnimator';
 
 export interface UnitVisual {
   x: number;
@@ -10,6 +12,7 @@ export interface UnitVisual {
   deathProgress: number;
   aimAngle: number;
   spawnPulse: number;
+  ragdollActive: boolean;
 }
 
 export interface Particle3D {
@@ -51,6 +54,13 @@ export class AnimationManager {
 
   private particleGeo = new THREE.SphereGeometry(0.06, 6, 4);
   private tracerMat = new THREE.LineBasicMaterial({ transparent: true });
+  private rigAnimator = new UnitRigAnimator();
+  readonly ragdollManager = new UnitRagdollManager();
+
+  /** Поставщик меша юнита — задаёт Renderer3D для ragdoll при смерти */
+  meshProvider: ((unitId: string) => THREE.Group | null) | null = null;
+  /** Вызывается после переноса меша в ragdoll — Renderer убирает из unitMeshes */
+  onRagdollDetach: ((unitId: string) => void) | null = null;
 
   syncUnits(units: Unit[]): void {
     for (const unit of units) {
@@ -63,6 +73,7 @@ export class AnimationManager {
           deathProgress: unit.isAlive ? 0 : 1,
           aimAngle: 0,
           spawnPulse: 1,
+          ragdollActive: false,
         });
       } else if (unit.isAlive) {
         const v = this.unitVisuals.get(unit.id)!;
@@ -80,6 +91,14 @@ export class AnimationManager {
     return this.unitVisuals.get(unitId);
   }
 
+  bindUnitRig(unitId: string, root: THREE.Object3D, clips: THREE.AnimationClip[]): void {
+    this.rigAnimator.bind(unitId, root, clips);
+  }
+
+  unbindUnitRig(unitId: string): void {
+    this.rigAnimator.unbind(unitId);
+  }
+
   update(dt: number): void {
     this.time += dt;
     if (this.screenShake > 0) this.screenShake = Math.max(0, this.screenShake - dt * 3);
@@ -90,6 +109,9 @@ export class AnimationManager {
       if (v.hitShake > 0) v.hitShake = Math.max(0, v.hitShake - dt * 5);
       if (v.spawnPulse < 1) v.spawnPulse = Math.min(1, v.spawnPulse + dt * 2);
     }
+
+    this.rigAnimator.update(dt);
+    this.ragdollManager.update(dt);
 
     this.particles = this.particles.filter(p => {
       p.life -= dt;
@@ -141,31 +163,38 @@ export class AnimationManager {
   async animateMove(unit: Unit, path: Position[]): Promise<void> {
     const visual = this.unitVisuals.get(unit.id)!;
     const stepDuration = 200;
+    const walking = path.length > 1;
 
-    for (let i = 1; i < path.length; i++) {
-      const from = path[i - 1];
-      const to = path[i];
-      const start = performance.now();
+    if (walking) this.rigAnimator.setWalking(unit.id, true);
 
-      await new Promise<void>(resolve => {
-        const tick = () => {
-          const elapsed = performance.now() - start;
-          const t = Math.min(1, elapsed / stepDuration);
-          const eased = easeInOutQuad(t);
-          visual.x = from.x + (to.x - from.x) * eased;
-          visual.y = from.y + (to.y - from.y) * eased;
-          visual.aimAngle = movementYaw(to.x - from.x, to.y - from.y);
+    try {
+      for (let i = 1; i < path.length; i++) {
+        const from = path[i - 1];
+        const to = path[i];
+        const start = performance.now();
 
-          if (t >= 1) resolve();
-          else requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      });
+        await new Promise<void>(resolve => {
+          const tick = () => {
+            const elapsed = performance.now() - start;
+            const t = Math.min(1, elapsed / stepDuration);
+            const eased = easeInOutQuad(t);
+            visual.x = from.x + (to.x - from.x) * eased;
+            visual.y = from.y + (to.y - from.y) * eased;
+            visual.aimAngle = movementYaw(to.x - from.x, to.y - from.y);
+
+            if (t >= 1) resolve();
+            else requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        });
+      }
+
+      const end = path[path.length - 1];
+      visual.x = end.x;
+      visual.y = end.y;
+    } finally {
+      if (walking) this.rigAnimator.setWalking(unit.id, false);
     }
-
-    const end = path[path.length - 1];
-    visual.x = end.x;
-    visual.y = end.y;
   }
 
   playShotToTile(
@@ -344,6 +373,29 @@ export class AnimationManager {
     const v = this.unitVisuals.get(unitId);
     if (!v) return Promise.resolve();
 
+    this.rigAnimator.playDeath(unitId);
+
+    const mesh = this.meshProvider?.(unitId);
+    if (mesh) {
+      return new Promise(resolve => {
+        setTimeout(() => {
+          this.rigAnimator.stopForRagdoll(unitId);
+          v.ragdollActive = true;
+          v.deathProgress = 0;
+
+          const worldPos = mesh.getWorldPosition(new THREE.Vector3());
+          mesh.parent?.remove(mesh);
+          this.ragdollManager.group.add(mesh);
+          mesh.position.copy(worldPos);
+          mesh.updateMatrixWorld(true);
+
+          this.onRagdollDetach?.(unitId);
+          this.ragdollManager.spawn(mesh);
+          resolve();
+        }, 180);
+      });
+    }
+
     const duration = 600;
     const start = performance.now();
 
@@ -479,6 +531,8 @@ export class AnimationManager {
     this.tracers = [];
     this.floatingLabels = [];
     this.unitVisuals.clear();
+    this.rigAnimator.clear();
+    this.ragdollManager.clear();
     this.screenShake = 0;
     this.time = 0;
   }

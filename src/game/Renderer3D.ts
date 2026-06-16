@@ -257,6 +257,9 @@ export class Renderer3D {
     if (!this.scene.children.includes(animations.effectsGroup)) {
       this.scene.add(animations.effectsGroup);
     }
+    if (!this.scene.children.includes(animations.ragdollManager.group)) {
+      this.scene.add(animations.ragdollManager.group);
+    }
 
     this.syncUnitMeshes(battle, animations, pulse);
     this.updateHighlights(battle, pulse);
@@ -308,14 +311,28 @@ export class Renderer3D {
         mesh = createUnitMesh(unit);
         this.unitsGroup.add(mesh);
         this.unitMeshes.set(unit.id, mesh);
+
+        if (mesh.userData.isRigged) {
+          const modelId = mesh.userData.modelId as string | undefined;
+          const body = mesh.getObjectByName('unitBody');
+          if (body && modelId) {
+            const clips =
+              (body as THREE.Object3D & { animations?: THREE.AnimationClip[] }).animations?.length
+                ? (body as THREE.Object3D & { animations: THREE.AnimationClip[] }).animations
+                : modelLoader.getAnimations(modelId);
+            animations.bindUnitRig(unit.id, body, clips);
+          }
+        }
       }
+
+      if (visual.ragdollActive) continue;
 
       const pos = gridToWorld(visual.x, visual.y);
       const deathScale = 1 - visual.deathProgress * 0.85;
       const spawnScale = 0.7 + visual.spawnPulse * 0.3;
 
       const isRigged = mesh.userData.isRigged === true;
-      const deathSink = isRigged ? visual.deathProgress * 0.45 : 0;
+      const deathSink = visual.deathProgress * 0.35;
       mesh.position.set(
         pos.x + (visual.hitShake > 0 ? (Math.random() - 0.5) * visual.hitShake * 0.08 : 0),
         MODEL_FLOOR_Y - deathSink,
@@ -328,24 +345,20 @@ export class Renderer3D {
       const facingOffset = (mesh.userData.facingOffset as number | undefined) ?? 0;
       const aimYaw = visual.aimAngle + facingOffset;
       mesh.rotation.y = 0;
-      if (isRigged) {
-        if (facingPivot) facingPivot.rotation.y = 0;
-        if (bodyPivot) bodyPivot.scale.setScalar(1);
-        modelLoader.setRigFacing(mesh, aimYaw);
-      } else if (facingPivot) {
+      if (facingPivot) {
         facingPivot.rotation.y = aimYaw;
       } else {
         mesh.rotation.y = aimYaw;
       }
 
-      if (!isRigged) {
-        if (bodyPivot) {
-          bodyPivot.scale.setScalar(visualScale);
-        } else {
-          mesh.scale.setScalar(visualScale);
-        }
+      if (isRigged) {
+        if (bodyPivot) bodyPivot.scale.setScalar(1);
+      } else if (bodyPivot) {
+        bodyPivot.scale.setScalar(visualScale);
+      } else {
+        mesh.scale.setScalar(visualScale);
       }
-      mesh.visible = !(visual.deathProgress >= 1 && !unit.isAlive);
+      mesh.visible = unit.isAlive || visual.deathProgress < 1 || visual.ragdollActive;
 
       // Selection ring
       const selRing = mesh.getObjectByName('selectionRing') as THREE.Mesh;
@@ -391,11 +404,20 @@ export class Renderer3D {
 
     for (const [id, mesh] of this.unitMeshes) {
       if (!activeIds.has(id)) {
+        animations.unbindUnitRig(id);
         this.unitsGroup.remove(mesh);
         this.disposeGroup(mesh);
         this.unitMeshes.delete(id);
       }
     }
+  }
+
+  setupAnimations(animations: AnimationManager): void {
+    animations.meshProvider = unitId => this.unitMeshes.get(unitId) ?? null;
+    animations.onRagdollDetach = unitId => {
+      animations.unbindUnitRig(unitId);
+      this.unitMeshes.delete(unitId);
+    };
   }
 
   private updateHighlights(battle: Battle, pulse: number): void {

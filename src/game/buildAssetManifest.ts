@@ -2,8 +2,12 @@ import {
   ALL_HERO_IDS,
   ALL_MOB_IDS,
   ALL_MODELS,
+  heroRiggedPath,
+  heroRiggedUrl,
   heroStaticPath,
   heroStaticUrl,
+  mobRiggedPath,
+  mobRiggedUrl,
   mobStaticPath,
   mobStaticUrl,
 } from './ModelCatalog';
@@ -35,13 +39,17 @@ export function buildAssetManifest(): AssetItem[] {
   }
 
   for (const heroId of ALL_HERO_IDS) {
-    add(heroStaticUrl(heroId), `hero:${heroId}`, 'model');
-    addTextures(heroStaticPath(heroId), `hero:${heroId}`);
+    add(heroRiggedUrl(heroId), `hero:${heroId}:rig`, 'model');
+    addTextures(heroRiggedPath(heroId), `hero:${heroId}:rig`);
+    add(heroStaticUrl(heroId), `hero:${heroId}:static`, 'model');
+    addTextures(heroStaticPath(heroId), `hero:${heroId}:static`);
   }
 
   for (const mobId of ALL_MOB_IDS) {
-    add(mobStaticUrl(mobId), `mob:${mobId}`, 'model');
-    addTextures(mobStaticPath(mobId), `mob:${mobId}`);
+    add(mobRiggedUrl(mobId), `mob:${mobId}:rig`, 'model');
+    addTextures(mobRiggedPath(mobId), `mob:${mobId}:rig`);
+    add(mobStaticUrl(mobId), `mob:${mobId}:static`, 'model');
+    addTextures(mobStaticPath(mobId), `mob:${mobId}:static`);
   }
 
   return items;

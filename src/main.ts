@@ -21,6 +21,7 @@ class Game {
     this.battle = new Battle();
     this.battle.animations = this.animations;
     this.renderer = new Renderer3D(container);
+    this.renderer.setupAnimations(this.animations);
     this.animations.labelContainer = this.renderer.labelsParent;
     this.hud = new HUD();
 

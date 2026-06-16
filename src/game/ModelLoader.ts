@@ -163,17 +163,7 @@ export class ModelLoader {
       jobs.map(async job => {
         if (this.templates.has(job.id)) return;
 
-        // Статика — корректный facing; ригованные FBX — запасной вариант
-        if (job.staticUrl && job.staticPath) {
-          try {
-            const root = await this.loadFbx(loader, job.staticUrl, job.staticPath, `${job.id}:static`);
-            this.registerTemplate(job.id, root, 'unit', 0.85);
-            return;
-          } catch (err) {
-            console.warn(`[ModelLoader] Статическая модель ${job.id}:`, err);
-          }
-        }
-
+        // Ригованные animfix-FBX — walk/death клипы; статика — запасной вариант
         if (job.riggedUrl && job.riggedPath) {
           try {
             const root = await this.loadFbx(loader, job.riggedUrl, job.riggedPath, job.id);
@@ -181,6 +171,16 @@ export class ModelLoader {
             return;
           } catch (err) {
             console.warn(`[ModelLoader] Ригованная модель ${job.id}:`, err);
+          }
+        }
+
+        if (job.staticUrl && job.staticPath) {
+          try {
+            const root = await this.loadFbx(loader, job.staticUrl, job.staticPath, `${job.id}:static`);
+            this.registerTemplate(job.id, root, 'unit', 0.85);
+            return;
+          } catch (err) {
+            console.warn(`[ModelLoader] Статическая модель ${job.id}:`, err);
           }
         }
 
