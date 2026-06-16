@@ -1,0 +1,24 @@
+Do not export the raw HD mesh directly if it has hundreds of thousands or millions of faces.
+
+Recommended Tripo flow:
+
+1. Open one character or monster folder.
+2. Upload upload.png in Image-to-3D.
+3. Paste prompt.txt as the text prompt.
+4. Generate 3 to 6 variants and keep the cleanest full-body silhouette.
+5. Reject models with fused arms, fused legs, fused weapons, missing fingers, or strange flat backs.
+6. Run Smart Mesh / Retopology before export.
+7. Target mesh budget:
+   - normal mobs: 10k to 25k triangles
+   - heroes: 30k to 60k triangles
+   - bosses: 50k to 100k triangles
+8. Run Auto Rig from the Animation section.
+9. Test idle, walk, run, attack-like motion if Tripo offers previews.
+10. Export as FBX with mesh, materials, textures, skeleton, and animations enabled.
+11. Send to Unreal through DCC Bridge or download the FBX and import manually.
+
+Unreal import target:
+
+/Game/Characters/Tripo/<asset_id>/
+
+For final game characters, keep guns and melee weapons as separate Unreal meshes. Do not accept a hero model where a weapon is permanently fused into the hand unless it is only a temporary prototype.

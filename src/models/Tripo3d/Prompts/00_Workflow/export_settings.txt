@@ -1,0 +1,17 @@
+Best export settings for Crimson Wars:
+
+Format: FBX
+Use case: Unreal Engine skeletal mesh
+Include: textures, materials, skeleton, skin weights
+Texture size: 2048 for normal mobs, 4096 for heroes and bosses
+Pose before rig: T-pose or A-pose
+Topology: Smart Mesh / retopologized, not the raw HD triangle mesh
+Scale: human hero around 180 cm, normal infected around 170-190 cm, bosses 260-380 cm
+
+After import in Unreal:
+
+1. Check the skeleton in Persona.
+2. Play an idle/walk animation.
+3. Check shoulders, elbows, hips, knees, neck, and jaw if present.
+4. Create sockets for weapons instead of using fused weapons.
+5. Keep source FBX and textures in the same folder as the imported asset.

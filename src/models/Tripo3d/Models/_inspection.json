@@ -1,0 +1,452 @@
+[
+  {
+    "folder": "armored+demon+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\armored+demon+3d+model\\tripo_convert_5d339fe5-4fb6-4f53-98ed-0aa183a12165.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2550,
+    "polygons": 4668,
+    "mesh_names": [
+      "tripo_node_5d339fe5"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1865,
+      -0.3936,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1865,
+      0.4248,
+      0.499
+    ],
+    "dimensions": [
+      0.373,
+      0.8184,
+      0.998
+    ]
+  },
+  {
+    "folder": "armored+humanoid+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\armored+humanoid+3d+model\\tripo_convert_0df6e508-e294-4002-b44c-4e917d6e50d1.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2489,
+    "polygons": 4882,
+    "mesh_names": [
+      "tripo_node_0df6e508"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1865,
+      -0.3994,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1865,
+      0.3994,
+      0.499
+    ],
+    "dimensions": [
+      0.373,
+      0.7988,
+      0.998
+    ]
+  },
+  {
+    "folder": "biohazard+armored+monster+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\biohazard+armored+monster+3d+model\\tripo_convert_29d32aa4-c766-483a-a6eb-d8a698942c8e.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2523,
+    "polygons": 4340,
+    "mesh_names": [
+      "tripo_node_29d32aa4"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1748,
+      -0.3545,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1748,
+      0.3545,
+      0.499
+    ],
+    "dimensions": [
+      0.3496,
+      0.709,
+      0.998
+    ]
+  },
+  {
+    "folder": "fantasy+creature+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\fantasy+creature+3d+model\\tripo_convert_57d8d4a5-13fe-4ed1-be95-be9a5d6b1215.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2614,
+    "polygons": 5220,
+    "mesh_names": [
+      "tripo_node_57d8d4a5"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1514,
+      -0.3564,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1514,
+      0.3564,
+      0.499
+    ],
+    "dimensions": [
+      0.3027,
+      0.7129,
+      0.998
+    ]
+  },
+  {
+    "folder": "fiery+demon+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\fiery+demon+3d+model\\tripo_convert_d4273d5d-a176-4b14-9d9b-e518f1e42a21.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2578,
+    "polygons": 5071,
+    "mesh_names": [
+      "tripo_node_d4273d5d"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.2041,
+      -0.4033,
+      -0.499
+    ],
+    "bounds_max": [
+      0.2041,
+      0.4033,
+      0.499
+    ],
+    "dimensions": [
+      0.4082,
+      0.8066,
+      0.998
+    ]
+  },
+  {
+    "folder": "hazmat+suit+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\hazmat+suit+3d+model\\tripo_convert_8e982f58-3901-4f2d-bacc-0da851b5e661.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2537,
+    "polygons": 4420,
+    "mesh_names": [
+      "tripo_node_8e982f58"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.2334,
+      -0.3232,
+      -0.499
+    ],
+    "bounds_max": [
+      0.2334,
+      0.3232,
+      0.499
+    ],
+    "dimensions": [
+      0.4668,
+      0.6465,
+      0.998
+    ]
+  },
+  {
+    "folder": "ice+monster+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\ice+monster+3d+model\\tripo_convert_a3ae4756-f26a-4c5e-a836-e3e1e45ce110.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2606,
+    "polygons": 5054,
+    "mesh_names": [
+      "tripo_node_a3ae4756"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.0986,
+      -0.3252,
+      -0.499
+    ],
+    "bounds_max": [
+      0.0986,
+      0.3252,
+      0.499
+    ],
+    "dimensions": [
+      0.1973,
+      0.6504,
+      0.998
+    ]
+  },
+  {
+    "folder": "lava+demon+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\lava+demon+3d+model\\tripo_convert_d277d302-de60-4fa8-9721-0e2613adfaf1.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2552,
+    "polygons": 5100,
+    "mesh_names": [
+      "tripo_node_d277d302"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1748,
+      -0.3818,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1748,
+      0.3818,
+      0.499
+    ],
+    "dimensions": [
+      0.3496,
+      0.7637,
+      0.998
+    ]
+  },
+  {
+    "folder": "lava+golem+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\lava+golem+3d+model\\tripo_convert_52cd36a0-99b6-4edf-b752-246675b49d5d.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2510,
+    "polygons": 5007,
+    "mesh_names": [
+      "tripo_node_52cd36a0"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1846,
+      -0.376,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1846,
+      0.376,
+      0.499
+    ],
+    "dimensions": [
+      0.3691,
+      0.752,
+      0.998
+    ]
+  },
+  {
+    "folder": "monster+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\monster+3d+model\\tripo_convert_4fcbe372-9d65-4fcd-b019-047c3273091e.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2581,
+    "polygons": 4569,
+    "mesh_names": [
+      "tripo_node_4fcbe372"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1338,
+      -0.3135,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1338,
+      0.3135,
+      0.499
+    ],
+    "dimensions": [
+      0.2676,
+      0.627,
+      0.998
+    ]
+  },
+  {
+    "folder": "undead+zombie+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\undead+zombie+3d+model\\tripo_convert_3d64ea66-4536-47c3-b7ec-cd67096920f8.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2516,
+    "polygons": 4892,
+    "mesh_names": [
+      "tripo_node_3d64ea66"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1338,
+      -0.2197,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1338,
+      0.2197,
+      0.499
+    ],
+    "dimensions": [
+      0.2676,
+      0.4395,
+      0.998
+    ]
+  },
+  {
+    "folder": "zombie+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\zombie+3d+model\\tripo_convert_d85c60fb-1738-47a9-a8ea-fce7f1401123.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2491,
+    "polygons": 4249,
+    "mesh_names": [
+      "tripo_node_d85c60fb"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.2393,
+      -0.29,
+      -0.499
+    ],
+    "bounds_max": [
+      0.2393,
+      0.29,
+      0.499
+    ],
+    "dimensions": [
+      0.4785,
+      0.5801,
+      0.998
+    ]
+  },
+  {
+    "folder": "zombie+creature+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\zombie+creature+3d+model\\tripo_convert_bd34e596-ed38-44af-8927-cb951749fd9c.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2547,
+    "polygons": 4720,
+    "mesh_names": [
+      "tripo_node_bd34e596"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1963,
+      -0.3389,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1963,
+      0.3389,
+      0.499
+    ],
+    "dimensions": [
+      0.3926,
+      0.6777,
+      0.998
+    ]
+  },
+  {
+    "folder": "zombie+creature+3d+model (1)",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\zombie+creature+3d+model (1)\\tripo_convert_26e68b8c-1644-4d6f-8825-68361eef67c3.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2563,
+    "polygons": 4359,
+    "mesh_names": [
+      "tripo_node_26e68b8c"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.2314,
+      -0.2783,
+      -0.499
+    ],
+    "bounds_max": [
+      0.2314,
+      0.2783,
+      0.499
+    ],
+    "dimensions": [
+      0.4629,
+      0.5566,
+      0.998
+    ]
+  },
+  {
+    "folder": "zombie+monster+3d+model",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Models\\zombie+monster+3d+model\\tripo_convert_49d363a8-d389-46c4-b753-7c83156a82b6.fbx",
+    "meshes": 1,
+    "armatures": 0,
+    "bones": 0,
+    "actions": [],
+    "vertices": 2559,
+    "polygons": 4129,
+    "mesh_names": [
+      "tripo_node_49d363a8"
+    ],
+    "armature_names": [],
+    "modifier_types": [],
+    "bounds_min": [
+      -0.1299,
+      -0.2744,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1299,
+      0.2744,
+      0.499
+    ],
+    "dimensions": [
+      0.2598,
+      0.5488,
+      0.998
+    ]
+  }
+]

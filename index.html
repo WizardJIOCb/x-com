@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>XCOM: Enemy Unknown — Browser</title>
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="top-bar">
+        <div class="logo">
+          <span class="logo-x">X</span>COM
+          <span class="logo-sub">ENEMY UNKNOWN</span>
+        </div>
+        <div id="mission-info" class="mission-info"></div>
+        <div class="turn-controls">
+          <button id="btn-auto-battle" class="btn btn-auto" title="Автоматические тактические ходы">⚡ Автобой</button>
+          <button id="btn-end-turn" class="btn btn-primary" disabled>Конец хода</button>
+        </div>
+      </header>
+
+      <main class="game-layout">
+        <aside id="unit-panel" class="unit-panel"></aside>
+        <div class="canvas-wrap">
+          <div id="game-container"></div>
+          <div id="action-bar" class="action-bar"></div>
+        </div>
+        <aside id="log-panel" class="log-panel">
+          <h3>Журнал боя</h3>
+          <div id="combat-log" class="combat-log"></div>
+        </aside>
+      </main>
+
+      <div id="overlay" class="overlay hidden">
+        <div class="overlay-content">
+          <h2 id="overlay-title"></h2>
+          <p id="overlay-text"></p>
+          <button id="overlay-btn" class="btn btn-primary">Продолжить</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

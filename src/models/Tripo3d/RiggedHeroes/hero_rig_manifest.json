@@ -1,0 +1,62 @@
+[
+  {
+    "heroId": "cyber",
+    "name": "Cyber Vanguard",
+    "sourceFolder": "cyber",
+    "facingOffset": 0,
+    "sourceFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Heroes\\cyber\\cyber.fbx",
+    "riggedFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedHeroes\\cyber\\SK_cyber_walk_death.fbx",
+    "animations": ["M_cyber_Walk", "M_cyber_Death"],
+    "bones": 20,
+    "meshCount": 1,
+    "weightMode": "auto"
+  },
+  {
+    "heroId": "scout",
+    "name": "Scout",
+    "sourceFolder": "scout",
+    "facingOffset": 180,
+    "sourceFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Heroes\\scout\\scout.fbx",
+    "riggedFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedHeroes\\scout\\SK_scout_walk_death.fbx",
+    "animations": ["M_scout_Walk", "M_scout_Death"],
+    "bones": 20,
+    "meshCount": 1,
+    "weightMode": "auto"
+  },
+  {
+    "heroId": "shadow",
+    "name": "Shadow",
+    "sourceFolder": "shadow",
+    "facingOffset": -90,
+    "sourceFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Heroes\\shadow\\shadow.fbx",
+    "riggedFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedHeroes\\shadow\\SK_shadow_walk_death.fbx",
+    "animations": ["M_shadow_Walk", "M_shadow_Death"],
+    "bones": 20,
+    "meshCount": 1,
+    "weightMode": "auto"
+  },
+  {
+    "heroId": "raider",
+    "name": "Raider",
+    "sourceFolder": "raider",
+    "facingOffset": -90,
+    "sourceFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Heroes\\raider\\raider.fbx",
+    "riggedFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedHeroes\\raider\\SK_raider_walk_death.fbx",
+    "animations": ["M_raider_Walk", "M_raider_Death"],
+    "bones": 20,
+    "meshCount": 1,
+    "weightMode": "auto"
+  },
+  {
+    "heroId": "medis",
+    "name": "Medis",
+    "sourceFolder": "medis",
+    "facingOffset": -90,
+    "sourceFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\Heroes\\medis\\medis.fbx",
+    "riggedFbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedHeroes\\medis\\SK_medis_walk_death.fbx",
+    "animations": ["M_medis_Walk", "M_medis_Death"],
+    "bones": 20,
+    "meshCount": 1,
+    "weightMode": "auto"
+  }
+]

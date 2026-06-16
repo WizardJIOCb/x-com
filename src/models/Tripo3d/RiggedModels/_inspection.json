@@ -1,0 +1,557 @@
+[
+  {
+    "folder": "boss",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\boss\\SK_boss_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_boss|SK_boss|M_boss_Death",
+      "SK_boss|SK_boss|M_boss_Walk"
+    ],
+    "vertices": 2550,
+    "polygons": 4668,
+    "mesh_names": [
+      "SM_boss"
+    ],
+    "armature_names": [
+      "SK_boss"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1865,
+      -0.3936,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1865,
+      0.4248,
+      0.499
+    ],
+    "dimensions": [
+      0.373,
+      0.8184,
+      0.998
+    ]
+  },
+  {
+    "folder": "boss_chief_surgeon",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\boss_chief_surgeon\\SK_boss_chief_surgeon_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_boss_chief_surgeon|SK_boss_chief_surgeon|M_boss_chief_surgeon_Death",
+      "SK_boss_chief_surgeon|SK_boss_chief_surgeon|M_boss_chief_surgeon_Walk"
+    ],
+    "vertices": 2537,
+    "polygons": 4420,
+    "mesh_names": [
+      "SM_boss_chief_surgeon"
+    ],
+    "armature_names": [
+      "SK_boss_chief_surgeon"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.2334,
+      -0.3232,
+      -0.499
+    ],
+    "bounds_max": [
+      0.2334,
+      0.3232,
+      0.499
+    ],
+    "dimensions": [
+      0.4668,
+      0.6465,
+      0.998
+    ]
+  },
+  {
+    "folder": "boss_hellmart",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\boss_hellmart\\SK_boss_hellmart_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_boss_hellmart|SK_boss_hellmart|M_boss_hellmart_Death",
+      "SK_boss_hellmart|SK_boss_hellmart|M_boss_hellmart_Walk"
+    ],
+    "vertices": 2578,
+    "polygons": 5071,
+    "mesh_names": [
+      "SM_boss_hellmart"
+    ],
+    "armature_names": [
+      "SK_boss_hellmart"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.2041,
+      -0.4033,
+      -0.499
+    ],
+    "bounds_max": [
+      0.2041,
+      0.4033,
+      0.499
+    ],
+    "dimensions": [
+      0.4082,
+      0.8066,
+      0.998
+    ]
+  },
+  {
+    "folder": "boss_reactor_apostle",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\boss_reactor_apostle\\SK_boss_reactor_apostle_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_boss_reactor_apostle|SK_boss_reactor_apostle|M_boss_reactor_apostle_Death",
+      "SK_boss_reactor_apostle|SK_boss_reactor_apostle|M_boss_reactor_apostle_Walk"
+    ],
+    "vertices": 2523,
+    "polygons": 4340,
+    "mesh_names": [
+      "SM_boss_reactor_apostle"
+    ],
+    "armature_names": [
+      "SK_boss_reactor_apostle"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1748,
+      -0.3545,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1748,
+      0.3545,
+      0.499
+    ],
+    "dimensions": [
+      0.3496,
+      0.709,
+      0.998
+    ]
+  },
+  {
+    "folder": "boss_road_titan",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\boss_road_titan\\SK_boss_road_titan_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_boss_road_titan|SK_boss_road_titan|M_boss_road_titan_Death",
+      "SK_boss_road_titan|SK_boss_road_titan|M_boss_road_titan_Walk"
+    ],
+    "vertices": 2552,
+    "polygons": 5100,
+    "mesh_names": [
+      "SM_boss_road_titan"
+    ],
+    "armature_names": [
+      "SK_boss_road_titan"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1748,
+      -0.3818,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1748,
+      0.3818,
+      0.499
+    ],
+    "dimensions": [
+      0.3496,
+      0.7637,
+      0.998
+    ]
+  },
+  {
+    "folder": "brute",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\brute\\SK_brute_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_brute|SK_brute|M_brute_Death",
+      "SK_brute|SK_brute|M_brute_Walk"
+    ],
+    "vertices": 2489,
+    "polygons": 4882,
+    "mesh_names": [
+      "SM_brute"
+    ],
+    "armature_names": [
+      "SK_brute"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1865,
+      -0.3994,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1865,
+      0.3994,
+      0.499
+    ],
+    "dimensions": [
+      0.373,
+      0.7988,
+      0.998
+    ]
+  },
+  {
+    "folder": "charger",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\charger\\SK_charger_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_charger|SK_charger|M_charger_Death",
+      "SK_charger|SK_charger|M_charger_Walk"
+    ],
+    "vertices": 2510,
+    "polygons": 5007,
+    "mesh_names": [
+      "SM_charger"
+    ],
+    "armature_names": [
+      "SK_charger"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1846,
+      -0.376,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1846,
+      0.376,
+      0.499
+    ],
+    "dimensions": [
+      0.3691,
+      0.752,
+      0.998
+    ]
+  },
+  {
+    "folder": "exploder",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\exploder\\SK_exploder_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_exploder|SK_exploder|M_exploder_Death",
+      "SK_exploder|SK_exploder|M_exploder_Walk"
+    ],
+    "vertices": 2547,
+    "polygons": 4720,
+    "mesh_names": [
+      "SM_exploder"
+    ],
+    "armature_names": [
+      "SK_exploder"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1963,
+      -0.3389,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1963,
+      0.3389,
+      0.499
+    ],
+    "dimensions": [
+      0.3926,
+      0.6777,
+      0.998
+    ]
+  },
+  {
+    "folder": "medic",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\medic\\SK_medic_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_medic|SK_medic|M_medic_Death",
+      "SK_medic|SK_medic|M_medic_Walk"
+    ],
+    "vertices": 2491,
+    "polygons": 4249,
+    "mesh_names": [
+      "SM_medic"
+    ],
+    "armature_names": [
+      "SK_medic"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.2393,
+      -0.29,
+      -0.499
+    ],
+    "bounds_max": [
+      0.2393,
+      0.29,
+      0.499
+    ],
+    "dimensions": [
+      0.4785,
+      0.5801,
+      0.998
+    ]
+  },
+  {
+    "folder": "normal",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\normal\\SK_normal_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_normal|SK_normal|M_normal_Death",
+      "SK_normal|SK_normal|M_normal_Walk"
+    ],
+    "vertices": 2516,
+    "polygons": 4892,
+    "mesh_names": [
+      "SM_normal"
+    ],
+    "armature_names": [
+      "SK_normal"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1338,
+      -0.2197,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1338,
+      0.2197,
+      0.499
+    ],
+    "dimensions": [
+      0.2676,
+      0.4395,
+      0.998
+    ]
+  },
+  {
+    "folder": "ranged",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\ranged\\SK_ranged_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_ranged|SK_ranged|M_ranged_Death",
+      "SK_ranged|SK_ranged|M_ranged_Walk"
+    ],
+    "vertices": 2559,
+    "polygons": 4129,
+    "mesh_names": [
+      "SM_ranged"
+    ],
+    "armature_names": [
+      "SK_ranged"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1299,
+      -0.2744,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1299,
+      0.2744,
+      0.499
+    ],
+    "dimensions": [
+      0.2598,
+      0.5488,
+      0.998
+    ]
+  },
+  {
+    "folder": "runner",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\runner\\SK_runner_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_runner|SK_runner|M_runner_Death",
+      "SK_runner|SK_runner|M_runner_Walk"
+    ],
+    "vertices": 2563,
+    "polygons": 4359,
+    "mesh_names": [
+      "SM_runner"
+    ],
+    "armature_names": [
+      "SK_runner"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.2314,
+      -0.2783,
+      -0.499
+    ],
+    "bounds_max": [
+      0.2314,
+      0.2783,
+      0.499
+    ],
+    "dimensions": [
+      0.4629,
+      0.5566,
+      0.998
+    ]
+  },
+  {
+    "folder": "shield",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\shield\\SK_shield_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_shield|SK_shield|M_shield_Death",
+      "SK_shield|SK_shield|M_shield_Walk"
+    ],
+    "vertices": 2614,
+    "polygons": 5220,
+    "mesh_names": [
+      "SM_shield"
+    ],
+    "armature_names": [
+      "SK_shield"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1514,
+      -0.3564,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1514,
+      0.3564,
+      0.499
+    ],
+    "dimensions": [
+      0.3027,
+      0.7129,
+      0.998
+    ]
+  },
+  {
+    "folder": "sniper",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\sniper\\SK_sniper_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_sniper|SK_sniper|M_sniper_Death",
+      "SK_sniper|SK_sniper|M_sniper_Walk"
+    ],
+    "vertices": 2606,
+    "polygons": 5054,
+    "mesh_names": [
+      "SM_sniper"
+    ],
+    "armature_names": [
+      "SK_sniper"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.0986,
+      -0.3252,
+      -0.499
+    ],
+    "bounds_max": [
+      0.0986,
+      0.3252,
+      0.499
+    ],
+    "dimensions": [
+      0.1973,
+      0.6504,
+      0.998
+    ]
+  },
+  {
+    "folder": "splitter",
+    "fbx": "C:\\Projects\\crimson-wars-native\\Stuff\\Tripo3d\\RiggedModels\\splitter\\SK_splitter_walk_death.fbx",
+    "meshes": 1,
+    "armatures": 1,
+    "bones": 20,
+    "actions": [
+      "SK_splitter|SK_splitter|M_splitter_Death",
+      "SK_splitter|SK_splitter|M_splitter_Walk"
+    ],
+    "vertices": 2581,
+    "polygons": 4569,
+    "mesh_names": [
+      "SM_splitter"
+    ],
+    "armature_names": [
+      "SK_splitter"
+    ],
+    "modifier_types": [
+      "ARMATURE"
+    ],
+    "bounds_min": [
+      -0.1338,
+      -0.3135,
+      -0.499
+    ],
+    "bounds_max": [
+      0.1338,
+      0.3135,
+      0.499
+    ],
+    "dimensions": [
+      0.2676,
+      0.627,
+      0.998
+    ]
+  }
+]

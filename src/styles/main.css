@@ -1,0 +1,354 @@
+:root {
+  --bg-dark: #0a0e14;
+  --bg-panel: #121a24;
+  --bg-panel-light: #1a2535;
+  --accent: #00d4aa;
+  --accent-dim: #00a888;
+  --danger: #ff4757;
+  --warning: #ffa502;
+  --text: #c8d6e5;
+  --text-dim: #8395a7;
+  --border: #2c3e50;
+  --soldier: #3498db;
+  --alien: #9b59b6;
+  --cover-half: #f39c12;
+  --cover-full: #e67e22;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text);
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 20px;
+  background: linear-gradient(180deg, #141c28 0%, var(--bg-panel) 100%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+
+.logo-x {
+  color: #fff;
+  text-shadow: 0 0 12px var(--accent);
+}
+
+.logo-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  margin-left: 8px;
+}
+
+.mission-info {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.game-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr 220px;
+  flex: 1;
+  min-height: 0;
+}
+
+.unit-panel,
+.log-panel {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.log-panel {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+.log-panel h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.canvas-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  background: radial-gradient(ellipse at center, #0c1218 0%, #040608 100%);
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#game-container {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  cursor: crosshair;
+}
+
+#game-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  position: relative;
+  z-index: 1;
+}
+
+#game-container > div {
+  pointer-events: none !important;
+}
+
+#game-container > div * {
+  pointer-events: none !important;
+}
+
+.action-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-light);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--border);
+  border-color: var(--accent-dim);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.turn-controls {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.btn-auto {
+  background: #1a2838;
+  border-color: var(--warning);
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.btn-auto:hover:not(:disabled) {
+  background: #243040;
+  border-color: #f0c040;
+  color: #f0c040;
+}
+
+.btn-auto.active {
+  background: var(--warning);
+  border-color: var(--warning);
+  color: #000;
+  animation: auto-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes auto-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 192, 64, 0.4); }
+  50% { box-shadow: 0 0 12px 2px rgba(240, 192, 64, 0.6); }
+}
+
+.btn-primary {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: #000;
+  font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent);
+}
+
+.btn-danger {
+  background: #c0392b;
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.btn.active {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+
+.unit-card {
+  background: var(--bg-panel-light);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.unit-card:hover {
+  border-color: var(--accent-dim);
+}
+
+.unit-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px rgba(0, 212, 170, 0.2);
+}
+
+.unit-card.dead {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.unit-card .name {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.unit-card .class-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+
+.hp-bar {
+  height: 6px;
+  background: #2c3e50;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--danger), #2ecc71);
+  transition: width 0.3s;
+}
+
+.unit-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.combat-log {
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.log-entry {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(44, 62, 80, 0.5);
+}
+
+.log-entry.hit { color: var(--danger); }
+.log-entry.miss { color: var(--text-dim); }
+.log-entry.kill { color: var(--warning); font-weight: 600; }
+.log-entry.info { color: var(--accent); }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay-content {
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 32px 48px;
+  text-align: center;
+  max-width: 480px;
+}
+
+.overlay-content h2 {
+  font-size: 28px;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.overlay-content p {
+  color: var(--text-dim);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+
+.section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin: 16px 0 8px;
+}
+
+.ap-dots {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.ap-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.ap-dot.spent {
+  background: var(--border);
+}
