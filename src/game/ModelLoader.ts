@@ -43,8 +43,20 @@ export class ModelLoader {
     this.ready = true;
   }
 
-  private async loadEverything(entries: ModelEntry[]): Promise<void> {
+  /** FBX не грузим встроенные текстуры — только applyPbrTextures с ?url из Vite */
+  private createFbxLoader(): FBXLoader {
     const loader = new FBXLoader();
+    const textureLoader = (loader as unknown as { textureLoader: THREE.TextureLoader }).textureLoader;
+    textureLoader.load = ((_url: string, onLoad?: (tex: THREE.Texture) => void) => {
+      const tex = new THREE.Texture();
+      onLoad?.(tex);
+      return tex;
+    }) as typeof textureLoader.load;
+    return loader;
+  }
+
+  private async loadEverything(entries: ModelEntry[]): Promise<void> {
+    const loader = this.createFbxLoader();
     const seen = new Set<string>();
 
     await Promise.all(
@@ -70,9 +82,9 @@ export class ModelLoader {
     url: string,
     modelPath: string
   ): Promise<THREE.Group> {
-    const resourcePath = url.substring(0, url.lastIndexOf('/') + 1);
-    loader.setResourcePath(resourcePath);
+    loader.setResourcePath('');
     const root = await loader.loadAsync(url);
+    this.stripEmbeddedFbxTextures(root);
     await applyPbrTextures(root, modelPath);
     return root;
   }
@@ -180,6 +192,35 @@ export class ModelLoader {
       default:
         return 0.9;
     }
+  }
+
+  private stripEmbeddedFbxTextures(object: THREE.Object3D): void {
+    const mapSlots = [
+      'map',
+      'normalMap',
+      'roughnessMap',
+      'metalnessMap',
+      'aoMap',
+      'emissiveMap',
+      'bumpMap',
+      'specularMap',
+      'alphaMap',
+      'lightMap',
+      'displacementMap',
+    ] as const;
+
+    object.traverse(child => {
+      if (!(child instanceof THREE.Mesh) && !(child instanceof THREE.SkinnedMesh)) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (!(material instanceof THREE.Material)) continue;
+        const mats = material as THREE.Material & Partial<Record<(typeof mapSlots)[number], THREE.Texture | null>>;
+        for (const slot of mapSlots) {
+          if (slot in mats) mats[slot] = null;
+        }
+        material.needsUpdate = true;
+      }
+    });
   }
 
   private prepareMeshes(object: THREE.Object3D): void {
