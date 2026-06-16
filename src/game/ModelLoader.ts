@@ -16,6 +16,7 @@ import {
   mobRiggedUrl,
   mobStaticPath,
   mobStaticUrl,
+  modelScaleMultiplier,
   unitFacingOffsetRadians,
   unitModelId,
 } from './ModelCatalog';
@@ -156,7 +157,8 @@ export class ModelLoader {
   ): void {
     this.prepareMeshes(root);
 
-    const size = targetSize ?? this.defaultTargetSize(category);
+    const size =
+      (targetSize ?? this.defaultTargetSize(category)) * modelScaleMultiplier(id);
     const group =
       category === 'unit'
         ? this.hasSkinnedMesh(root)

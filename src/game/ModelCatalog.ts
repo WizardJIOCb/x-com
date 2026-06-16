@@ -209,6 +209,13 @@ export function unitModelId(kind: 'hero' | 'mob', assetId: string): string {
 const DEFAULT_UNIT_FACING_DEG = -90;
 
 /** Коррекция ориентации Tripo-модели: «вперёд» = +Z в координатах боя */
+/** Дополнительный масштаб отдельных объектов при нормализации */
+export function modelScaleMultiplier(modelId: string): number {
+  const id = modelId.toLowerCase();
+  if (id.includes('ambulance')) return 2;
+  return 1;
+}
+
 export function unitFacingOffsetRadians(modelId: string): number {
   if (modelId.startsWith('unit_hero_')) {
     const heroId = modelId.slice('unit_hero_'.length);
