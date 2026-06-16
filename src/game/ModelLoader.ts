@@ -30,6 +30,51 @@ export interface NormalizedModel {
   animations: THREE.AnimationClip[];
 }
 
+let fbxTexturePatchDepth = 0;
+let savedTextureLoaderLoad: typeof THREE.TextureLoader.prototype.load | null = null;
+let fbxParseChain: Promise<unknown> = Promise.resolve();
+
+function noopTextureLoaderLoad(
+  this: THREE.TextureLoader,
+  _url: string,
+  onLoad?: (tex: THREE.Texture) => void
+): THREE.Texture {
+  const tex = new THREE.Texture();
+  onLoad?.(tex);
+  return tex;
+}
+
+function beginSuppressFbxTextures(): void {
+  if (fbxTexturePatchDepth === 0) {
+    savedTextureLoaderLoad = THREE.TextureLoader.prototype.load;
+    THREE.TextureLoader.prototype.load = noopTextureLoaderLoad as typeof THREE.TextureLoader.prototype.load;
+  }
+  fbxTexturePatchDepth++;
+}
+
+function endSuppressFbxTextures(): void {
+  fbxTexturePatchDepth = Math.max(0, fbxTexturePatchDepth - 1);
+  if (fbxTexturePatchDepth === 0 && savedTextureLoaderLoad) {
+    THREE.TextureLoader.prototype.load = savedTextureLoaderLoad;
+    savedTextureLoaderLoad = null;
+  }
+}
+
+/** FBXLoader создаёт TextureLoader внутри parse() — сериализуем и глушим на время parse */
+function loadFbxWithoutEmbeddedTextures(loader: FBXLoader, url: string): Promise<THREE.Group> {
+  const task = async () => {
+    beginSuppressFbxTextures();
+    try {
+      return await loader.loadAsync(url);
+    } finally {
+      endSuppressFbxTextures();
+    }
+  };
+  const result = fbxParseChain.then(task, task) as Promise<THREE.Group>;
+  fbxParseChain = result.catch(() => {});
+  return result;
+}
+
 export class ModelLoader {
   private templates = new Map<string, NormalizedModel>();
   private loading: Promise<void> | null = null;
@@ -44,20 +89,8 @@ export class ModelLoader {
     this.ready = true;
   }
 
-  /** FBX не грузим встроенные текстуры — только applyPbrTextures с ?url из Vite */
-  private createFbxLoader(): FBXLoader {
-    const loader = new FBXLoader();
-    const textureLoader = (loader as unknown as { textureLoader: THREE.TextureLoader }).textureLoader;
-    textureLoader.load = ((_url: string, onLoad?: (tex: THREE.Texture) => void) => {
-      const tex = new THREE.Texture();
-      onLoad?.(tex);
-      return tex;
-    }) as typeof textureLoader.load;
-    return loader;
-  }
-
   private async loadEverything(entries: ModelEntry[]): Promise<void> {
-    const loader = this.createFbxLoader();
+    const loader = new FBXLoader();
     const seen = new Set<string>();
 
     await Promise.all(
@@ -84,7 +117,7 @@ export class ModelLoader {
     modelPath: string
   ): Promise<THREE.Group> {
     loader.setResourcePath('');
-    const root = await loader.loadAsync(url);
+    const root = await loadFbxWithoutEmbeddedTextures(loader, url);
     this.stripEmbeddedFbxTextures(root);
     await applyPbrTextures(root, modelPath);
     return root;
