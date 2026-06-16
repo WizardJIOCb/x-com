@@ -104,20 +104,47 @@ export class Grid {
       .filter(p => this.getTile(p.x, p.y) !== null);
   }
 
+  private moveCost(tile: Position): number {
+    let cost = 1;
+    for (const n of this.getNeighbors(tile)) {
+      const t = this.getTile(n.x, n.y);
+      if (t && this.blocksMovement(t)) cost += 0.15;
+    }
+    return cost;
+  }
+
+  pathDistance(start: Position, goal: Position, occupied: Set<string>): number {
+    const path = this.findPath(start, goal, occupied);
+    return path ? path.length - 1 : Infinity;
+  }
+
   findPath(start: Position, goal: Position, occupied: Set<string>): Position[] | null {
     const key = (p: Position) => `${p.x},${p.y}`;
-    const open: Position[] = [start];
-    const cameFrom = new Map<string, Position>();
-    const cost = new Map<string, number>();
-    cost.set(key(start), 0);
+    const startKey = key(start);
+    if (start.x === goal.x && start.y === goal.y) return [start];
 
-    while (open.length > 0) {
-      open.sort((a, b) => {
-        const ca = cost.get(key(a)) ?? Infinity;
-        const cb = cost.get(key(b)) ?? Infinity;
-        return ca - cb;
-      });
-      const current = open.shift()!;
+    const openKeys: string[] = [startKey];
+    const openPos = new Map<string, Position>([[startKey, start]]);
+    const cameFrom = new Map<string, Position>();
+    const gScore = new Map<string, number>([[startKey, 0]]);
+    const closed = new Set<string>();
+    const heuristic = (p: Position) => this.manhattan(p, goal);
+
+    while (openKeys.length > 0) {
+      let bestIdx = 0;
+      let bestF = Infinity;
+      for (let i = 0; i < openKeys.length; i++) {
+        const k = openKeys[i];
+        const f = (gScore.get(k) ?? Infinity) + heuristic(openPos.get(k)!);
+        if (f < bestF) {
+          bestF = f;
+          bestIdx = i;
+        }
+      }
+
+      const currentKey = openKeys.splice(bestIdx, 1)[0];
+      const current = openPos.get(currentKey)!;
+      openPos.delete(currentKey);
 
       if (current.x === goal.x && current.y === goal.y) {
         const path: Position[] = [];
@@ -129,18 +156,27 @@ export class Grid {
         return path;
       }
 
+      closed.add(currentKey);
+
       for (const neighbor of this.getNeighbors(current)) {
-        if (!this.isWalkable(neighbor.x, neighbor.y, occupied) && !(neighbor.x === goal.x && neighbor.y === goal.y)) {
+        const nKey = key(neighbor);
+        if (closed.has(nKey)) continue;
+        if (
+          !this.isWalkable(neighbor.x, neighbor.y, occupied) &&
+          !(neighbor.x === goal.x && neighbor.y === goal.y)
+        ) {
           continue;
         }
-        const newCost = (cost.get(key(current)) ?? 0) + 1;
-        const nKey = key(neighbor);
-        if (newCost < (cost.get(nKey) ?? Infinity)) {
-          cost.set(nKey, newCost);
-          cameFrom.set(nKey, current);
-          if (!open.some(p => p.x === neighbor.x && p.y === neighbor.y)) {
-            open.push(neighbor);
-          }
+
+        const step = this.moveCost(neighbor);
+        const tentativeG = (gScore.get(currentKey) ?? 0) + step;
+        if (tentativeG >= (gScore.get(nKey) ?? Infinity)) continue;
+
+        cameFrom.set(nKey, current);
+        gScore.set(nKey, tentativeG);
+        if (!openPos.has(nKey)) {
+          openPos.set(nKey, neighbor);
+          openKeys.push(nKey);
         }
       }
     }

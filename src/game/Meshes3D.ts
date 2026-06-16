@@ -154,7 +154,10 @@ function createCoverMesh(cover: CoverType, hpRatio = 1): THREE.Group {
   return g;
 }
 
-function addUnitBody(pivot: THREE.Group, unit: Unit): { isRigged: boolean; facingOffset: number } {
+function addUnitBody(
+  pivot: THREE.Group,
+  unit: Unit
+): { isRigged: boolean; facingOffset: number; modelId: string | null } {
   const modelId = modelLoader.getUnitModelId(unit);
   if (modelId) {
     const body = modelLoader.clone(modelId);
@@ -164,6 +167,7 @@ function addUnitBody(pivot: THREE.Group, unit: Unit): { isRigged: boolean; facin
       return {
         isRigged: modelLoader.hasSkinnedMesh(body),
         facingOffset: modelLoader.getFacingOffset(modelId),
+        modelId,
       };
     }
   }
@@ -173,20 +177,25 @@ function addUnitBody(pivot: THREE.Group, unit: Unit): { isRigged: boolean; facin
   } else {
     buildAlien(pivot, unit.className);
   }
-  return { isRigged: false, facingOffset: 0 };
+  return { isRigged: false, facingOffset: 0, modelId: null };
 }
 
 export function createUnitMesh(unit: Unit): THREE.Group {
   const group = new THREE.Group();
   group.userData = { unitId: unit.id };
 
+  const facingPivot = new THREE.Group();
+  facingPivot.name = 'facingPivot';
+  group.add(facingPivot);
+
   const bodyPivot = new THREE.Group();
   bodyPivot.name = 'bodyPivot';
-  group.add(bodyPivot);
+  facingPivot.add(bodyPivot);
 
-  const { isRigged, facingOffset } = addUnitBody(bodyPivot, unit);
+  const { isRigged, facingOffset, modelId } = addUnitBody(bodyPivot, unit);
   group.userData.isRigged = isRigged;
   group.userData.facingOffset = facingOffset;
+  if (modelId) group.userData.modelId = modelId;
 
   // Selection ring
   const ring = new THREE.Mesh(

@@ -71,8 +71,9 @@ export class Renderer3D {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.maxPolarAngle = Math.PI / 2.4;
-    this.controls.minPolarAngle = Math.PI / 6;
+    // polar: 0 = сверху, π/2 = у горизонта; почти до уровня земли
+    this.controls.maxPolarAngle = Math.PI / 2 - 0.04;
+    this.controls.minPolarAngle = Math.PI / 8;
     this.controls.minDistance = 10;
     this.controls.maxDistance = 80;
     this.controls.target.set(0, 0, 0);
@@ -81,6 +82,11 @@ export class Renderer3D {
       LEFT: -1 as THREE.MOUSE,
       MIDDLE: THREE.MOUSE.DOLLY,
       RIGHT: THREE.MOUSE.ROTATE,
+    };
+    // Один палец — панорама (CameraInput); два — зум и вращение
+    this.controls.touches = {
+      ONE: -1 as THREE.TOUCH,
+      TWO: THREE.TOUCH.DOLLY_ROTATE,
     };
 
     this.groundPlane = this.createGroundPlane();
@@ -153,7 +159,7 @@ export class Renderer3D {
   }
 
   private createPropModel(prop: import('../types').MapProp): THREE.Group | null {
-    const fitScale = 0.88;
+    const fitScale = 0.94;
 
     if (prop.w <= 1 && prop.h <= 1) {
       return modelLoader.clone(prop.modelId);
@@ -316,14 +322,18 @@ export class Renderer3D {
         pos.z
       );
 
+      const facingPivot = mesh.getObjectByName('facingPivot') as THREE.Group | undefined;
       const bodyPivot = mesh.getObjectByName('bodyPivot') as THREE.Group | undefined;
       const visualScale = spawnScale * deathScale;
       const facingOffset = (mesh.userData.facingOffset as number | undefined) ?? 0;
       const aimYaw = visual.aimAngle + facingOffset;
+      mesh.rotation.y = 0;
       if (isRigged) {
-        mesh.rotation.y = 0;
+        if (facingPivot) facingPivot.rotation.y = 0;
         if (bodyPivot) bodyPivot.scale.setScalar(1);
         modelLoader.setRigFacing(mesh, aimYaw);
+      } else if (facingPivot) {
+        facingPivot.rotation.y = aimYaw;
       } else {
         mesh.rotation.y = aimYaw;
       }

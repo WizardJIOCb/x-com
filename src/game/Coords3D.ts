@@ -28,3 +28,8 @@ export function worldToGrid(point: THREE.Vector3): Position | null {
 export function gridDepth(gx: number, gy: number): number {
   return gx + gy;
 }
+
+/** Угол поворота вокруг Y: grid dx → world X, grid dy → world Z */
+export function movementYaw(dx: number, dz: number): number {
+  return Math.atan2(dx, dz);
+}

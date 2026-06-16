@@ -20,6 +20,7 @@ import {
   unitFacingOffsetRadians,
   unitModelId,
 } from './ModelCatalog';
+import { fetchArrayBuffer } from './fetchAsset';
 import { applyPbrTextures } from './ModelTextures';
 
 export interface NormalizedModel {
@@ -61,11 +62,16 @@ function endSuppressFbxTextures(): void {
 }
 
 /** FBXLoader создаёт TextureLoader внутри parse() — сериализуем и глушим на время parse */
-function loadFbxWithoutEmbeddedTextures(loader: FBXLoader, url: string): Promise<THREE.Group> {
+function loadFbxWithoutEmbeddedTextures(
+  loader: FBXLoader,
+  url: string,
+  label: string
+): Promise<THREE.Group> {
   const task = async () => {
     beginSuppressFbxTextures();
     try {
-      return await loader.loadAsync(url);
+      const buffer = await fetchArrayBuffer(url, label, 'model');
+      return loader.parse(buffer, url);
     } finally {
       endSuppressFbxTextures();
     }
@@ -98,7 +104,7 @@ export class ModelLoader {
         if (seen.has(entry.url)) return;
         seen.add(entry.url);
         try {
-          const root = await this.loadFbx(loader, entry.url, entry.path);
+          const root = await this.loadFbx(loader, entry.url, entry.path, entry.id);
           if (!this.templates.has(entry.id)) {
             this.registerTemplate(entry.id, root, entry.category);
           }
@@ -114,10 +120,11 @@ export class ModelLoader {
   private async loadFbx(
     loader: FBXLoader,
     url: string,
-    modelPath: string
+    modelPath: string,
+    label: string
   ): Promise<THREE.Group> {
     loader.setResourcePath('');
-    const root = await loadFbxWithoutEmbeddedTextures(loader, url);
+    const root = await loadFbxWithoutEmbeddedTextures(loader, url, label);
     this.stripEmbeddedFbxTextures(root);
     await applyPbrTextures(root, modelPath);
     return root;
@@ -156,10 +163,10 @@ export class ModelLoader {
       jobs.map(async job => {
         if (this.templates.has(job.id)) return;
 
-        // Статические FBX — нейтральная поза, без артефактов скининга при повороте/масштабе
+        // Статика — корректный facing; ригованные FBX — запасной вариант
         if (job.staticUrl && job.staticPath) {
           try {
-            const root = await this.loadFbx(loader, job.staticUrl, job.staticPath);
+            const root = await this.loadFbx(loader, job.staticUrl, job.staticPath, `${job.id}:static`);
             this.registerTemplate(job.id, root, 'unit', 0.85);
             return;
           } catch (err) {
@@ -169,7 +176,7 @@ export class ModelLoader {
 
         if (job.riggedUrl && job.riggedPath) {
           try {
-            const root = await this.loadFbx(loader, job.riggedUrl, job.riggedPath);
+            const root = await this.loadFbx(loader, job.riggedUrl, job.riggedPath, job.id);
             this.registerTemplate(job.id, root, 'unit', 0.85);
             return;
           } catch (err) {
@@ -204,7 +211,15 @@ export class ModelLoader {
     box.getSize(dims);
 
     if (category === 'unit') {
-      group.userData.facingOffset = unitFacingOffsetRadians(id);
+      const manifestOffset = unitFacingOffsetRadians(id);
+      const useManifest =
+        id.startsWith('unit_hero_') ||
+        id.startsWith('unit_mob_') ||
+        this.hasSkinnedMesh(group);
+      const facingOffset = useManifest
+        ? manifestOffset
+        : this.detectUnitFacingOffset(group);
+      group.userData.facingOffset = facingOffset;
     }
 
     this.templates.set(id, {
@@ -312,6 +327,54 @@ export class ModelLoader {
     return found;
   }
 
+  /**
+   * Подбирает Y-поворот, чтобы «лицо» модели смотрело в +Z (как aimAngle при движении вперёд).
+   * Перебирает 0/±90/180° и выбирает вариант с максимальным выступом верхней части в +Z.
+   */
+  private detectUnitFacingOffset(object: THREE.Object3D): number {
+    const candidates = [0, -Math.PI / 2, Math.PI / 2, Math.PI];
+    const savedY = object.rotation.y;
+    const box = new THREE.Box3().setFromObject(object);
+    const minY = box.min.y + (box.max.y - box.min.y) * 0.35;
+    const centerZ = (box.min.z + box.max.z) * 0.5;
+    const v = new THREE.Vector3();
+
+    let best = 0;
+    let bestScore = -Infinity;
+
+    for (const angle of candidates) {
+      object.rotation.y = angle;
+      object.updateMatrixWorld(true);
+
+      let forwardMass = 0;
+      let count = 0;
+      object.traverse(child => {
+        if (!(child instanceof THREE.Mesh) && !(child instanceof THREE.SkinnedMesh)) return;
+        const pos = child.geometry.attributes.position;
+        if (!pos) return;
+        const mw = child.matrixWorld;
+        for (let i = 0; i < pos.count; i += 2) {
+          v.fromBufferAttribute(pos, i).applyMatrix4(mw);
+          if (v.y < minY) continue;
+          if (v.z > centerZ) {
+            forwardMass += v.z - centerZ;
+            count++;
+          }
+        }
+      });
+
+      const score = count > 0 ? forwardMass / count : 0;
+      if (score > bestScore) {
+        bestScore = score;
+        best = angle;
+      }
+    }
+
+    object.rotation.y = savedY;
+    object.updateMatrixWorld(true);
+    return best;
+  }
+
   private normalizeStaticModel(object: THREE.Object3D, targetSize: number): THREE.Group {
     const box = new THREE.Box3().setFromObject(object);
     const size = new THREE.Vector3();
@@ -382,10 +445,14 @@ export class ModelLoader {
     return null;
   }
 
+  getAnimations(id: string): THREE.AnimationClip[] {
+    return this.templates.get(id)?.animations ?? [];
+  }
+
   clone(id: string): THREE.Group | null {
     const template = this.templates.get(id);
     if (!template) return null;
-    const clone = this.cloneGroup(template.group);
+    const clone = this.cloneGroup(template.group, template.animations);
     this.groundAt(clone, 0);
     return clone;
   }
@@ -394,7 +461,7 @@ export class ModelLoader {
     const template = this.templates.get(id);
     if (!template) return null;
 
-    const clone = this.cloneGroup(template.group);
+    const clone = this.cloneGroup(template.group, template.animations);
     if (uniform) {
       const target = Math.max(width, depth);
       const base = Math.max(template.baseWidth, template.baseDepth, 0.001);
@@ -411,13 +478,16 @@ export class ModelLoader {
     return clone;
   }
 
-  private cloneGroup(source: THREE.Group): THREE.Group {
+  private cloneGroup(source: THREE.Group, animations: THREE.AnimationClip[] = []): THREE.Group {
     let hasSkinned = false;
     source.traverse(child => {
       if (child instanceof THREE.SkinnedMesh) hasSkinned = true;
     });
 
     const clone = (hasSkinned ? SkeletonUtils.clone(source) : source.clone(true)) as THREE.Group;
+    if (animations.length > 0) {
+      clone.animations = animations;
+    }
 
     clone.traverse(child => {
       if (child instanceof THREE.Mesh && !(child instanceof THREE.SkinnedMesh)) {

@@ -1,22 +1,12 @@
 import { Battle } from './game/Battle';
 import { Renderer3D } from './game/Renderer3D';
 import { AnimationManager } from './game/Animations';
-import { HUD } from './ui/HUD';
-import type { ActionMode } from './types';
-import { TRIPO_MODEL_COUNTS } from './game/ModelCatalog';
+import { buildAssetManifest, probeAssetSizes } from './game/buildAssetManifest';
+import { loadProgress } from './game/LoadProgress';
 import { modelLoader } from './game/ModelLoader';
-
-function showLoadingOverlay(): HTMLElement {
-  const el = document.createElement('div');
-  el.id = 'loading-overlay';
-  el.style.cssText = `
-    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
-    background:#0a0e14;color:#7ee8ff;font:bold 18px 'Segoe UI',sans-serif;z-index:9999;
-  `;
-  el.textContent = 'Загрузка 3D-моделей...';
-  document.body.appendChild(el);
-  return el;
-}
+import { HUD } from './ui/HUD';
+import { LoadingScreen } from './ui/LoadingScreen';
+import type { ActionMode } from './types';
 
 class Game {
   battle: Battle;
@@ -92,20 +82,24 @@ class Game {
 }
 
 async function bootstrap(): Promise<void> {
-  const overlay = showLoadingOverlay();
+  const loader = new LoadingScreen();
+  loader.attach();
+
+  const manifest = buildAssetManifest();
+  loadProgress.init(manifest);
+
+  let ok = true;
   try {
+    const totalBytes = await probeAssetSizes(manifest.map(item => item.url));
+    loadProgress.setTotalBytes(totalBytes);
     await modelLoader.loadAll();
-    const c = TRIPO_MODEL_COUNTS;
-    overlay.textContent =
-      `Загружено ${modelLoader.loadedCount} моделей, ${c.textures} текстур`;
-    await new Promise(r => setTimeout(r, 400));
   } catch (err) {
+    ok = false;
     console.error(err);
-    overlay.textContent = 'Ошибка загрузки моделей, процедурная графика...';
-    await new Promise(r => setTimeout(r, 800));
-  } finally {
-    overlay.remove();
+    loadProgress.setPhase('error', 'Ошибка загрузки');
   }
+
+  await loader.finish(ok);
   new Game();
 }
 

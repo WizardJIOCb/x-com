@@ -212,7 +212,13 @@ const DEFAULT_UNIT_FACING_DEG = -90;
 /** Дополнительный масштаб отдельных объектов при нормализации */
 export function modelScaleMultiplier(modelId: string): number {
   const id = modelId.toLowerCase();
-  if (id.includes('ambulance')) return 2;
+  if (id.includes('ambulance')) return 2.8;
+  if (id.includes('bus')) return 4;
+  if (id.includes('clinic') || id.includes('storefront')) return 1.45;
+  if (id.includes('gas')) return 1.35;
+  if (id.includes('facility') || id.includes('industrial')) return 1.4;
+  if (id.includes('building')) return 1.3;
+  if (id.includes('reactor') || id.includes('tank') || id.includes('silo')) return 0.7;
   return 1;
 }
 

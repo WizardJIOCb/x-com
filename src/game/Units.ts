@@ -1,5 +1,5 @@
 import type { Position, Unit, Weapon } from '../types';
-import { ALL_MOB_IDS, SOLDIER_TO_HERO, unitModelId } from './ModelCatalog';
+import { ALIEN_TO_MOB, ALL_MOB_IDS, SOLDIER_TO_HERO, unitModelId } from './ModelCatalog';
 
 let idCounter = 0;
 
@@ -75,7 +75,7 @@ export function createSoldiers(spawns: Position[]): Unit[] {
 export function createAliens(spawns: Position[]): Unit[] {
   return spawns.map((pos, i) => {
     const type = ALIEN_TYPES[i % ALIEN_TYPES.length];
-    const mobId = ALL_MOB_IDS[i % ALL_MOB_IDS.length];
+    const mobId = ALIEN_TO_MOB[type.className] ?? ALL_MOB_IDS[i % ALL_MOB_IDS.length];
     return {
       id: uid('alien'),
       name: `${type.name} ${i + 1}`,

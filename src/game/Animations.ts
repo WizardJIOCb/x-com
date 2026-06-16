@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Position, ShotRayHit, Unit } from '../types';
-import { gridToWorld } from './Coords3D';
+import { gridToWorld, movementYaw } from './Coords3D';
 
 export interface UnitVisual {
   x: number;
@@ -154,7 +154,7 @@ export class AnimationManager {
           const eased = easeInOutQuad(t);
           visual.x = from.x + (to.x - from.x) * eased;
           visual.y = from.y + (to.y - from.y) * eased;
-          visual.aimAngle = Math.atan2(to.x - from.x, to.y - from.y);
+          visual.aimAngle = movementYaw(to.x - from.x, to.y - from.y);
 
           if (t >= 1) resolve();
           else requestAnimationFrame(tick);
@@ -177,7 +177,10 @@ export class AnimationManager {
     const from = gridToWorld(sv.x, sv.y, 0.7);
     const to = gridToWorld(endPos.x, endPos.y, 0.7);
 
-    sv.aimAngle = Math.atan2(endPos.x - shooter.position.x, endPos.y - shooter.position.y);
+    sv.aimAngle = movementYaw(
+      endPos.x - shooter.position.x,
+      endPos.y - shooter.position.y
+    );
 
     const color = shooter.team === 'soldier' ? 0x7ee8ff : 0xc86eff;
     const lineGeo = new THREE.BufferGeometry().setFromPoints([from, from.clone()]);
@@ -266,7 +269,10 @@ export class AnimationManager {
     const from = gridToWorld(sv.x, sv.y, 0.7);
     const to = gridToWorld(tv.x, tv.y, 0.7);
 
-    sv.aimAngle = Math.atan2(target.position.x - shooter.position.x, target.position.y - shooter.position.y);
+    sv.aimAngle = movementYaw(
+      target.position.x - shooter.position.x,
+      target.position.y - shooter.position.y
+    );
 
     const color = shooter.team === 'soldier' ? 0x7ee8ff : 0xc86eff;
     const lineGeo = new THREE.BufferGeometry().setFromPoints([from, from.clone()]);

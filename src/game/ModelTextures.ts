@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { loadProgress } from './LoadProgress';
 
 export interface PbrTextureSet {
   basecolor?: string;
@@ -67,16 +68,23 @@ export function getTexturesForModel(modelPath: string): PbrTextureSet {
   return result;
 }
 
+function textureLabel(url: string): string {
+  const name = url.split('/').pop() ?? url;
+  return name.replace(/\.(jpe?g|png|webp)$/i, '');
+}
+
 async function loadCached(url: string, colorSpace: THREE.ColorSpace): Promise<THREE.Texture> {
   const cached = textureCache.get(url);
   if (cached) return cached;
 
+  loadProgress.startFile(url, textureLabel(url), 'texture');
   const tex = await loader.loadAsync(url);
   tex.colorSpace = colorSpace;
   tex.flipY = colorSpace === THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   textureCache.set(url, tex);
+  loadProgress.completeFile(url);
   return tex;
 }
 

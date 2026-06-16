@@ -126,14 +126,27 @@ function ensureSpawnReachable(map: Tile[][], zone: { x1: number; y1: number; x2:
 
 function pickBuildingSize(modelId: string): { w: number; h: number } {
   if (isRoundBuilding(modelId)) {
-    const size = 3 + Math.floor(Math.random() * 2);
-    return { w: size, h: size };
+    return { w: 2 + Math.floor(Math.random() * 2), h: 2 + Math.floor(Math.random() * 2) };
   }
 
   const path = modelId.toLowerCase();
   if (path.includes('gas') || path.includes('storefront') || path.includes('clinic')) {
     return {
-      w: 4 + Math.floor(Math.random() * 3),
+      w: 5 + Math.floor(Math.random() * 2),
+      h: 4 + Math.floor(Math.random() * 2),
+    };
+  }
+
+  if (path.includes('facility') || path.includes('industrial')) {
+    return {
+      w: 5 + Math.floor(Math.random() * 3),
+      h: 4 + Math.floor(Math.random() * 2),
+    };
+  }
+
+  if (path.includes('building')) {
+    return {
+      w: 4 + Math.floor(Math.random() * 2),
       h: 3 + Math.floor(Math.random() * 2),
     };
   }
@@ -250,15 +263,23 @@ export function generateMap(): MapGenResult {
     map[y][x] = tile;
   }
 
-  // Декоративные объекты на полу
-  const propCount = Math.floor(GRID_W * GRID_H * 0.018);
+  const vehiclePropIds = PROP_MODEL_IDS.filter(
+    id => id.includes('ambulance') || id.includes('bus')
+  );
+
+  // Декоративные объекты на полу (скора и автобус — чаще)
+  const propCount = Math.floor(GRID_W * GRID_H * 0.02);
   for (let i = 0; i < propCount; i++) {
     const x = 2 + Math.floor(Math.random() * (GRID_W - 4));
     const y = 2 + Math.floor(Math.random() * (GRID_H - 4));
     if (map[y][x].type !== 'floor' || map[y][x].modelId) continue;
     if (PROP_MODEL_IDS.length === 0) continue;
 
-    map[y][x].modelId = pickRandom(PROP_MODEL_IDS);
+    if (vehiclePropIds.length > 0 && Math.random() < 0.22) {
+      map[y][x].modelId = pickRandom(vehiclePropIds);
+    } else {
+      map[y][x].modelId = pickRandom(PROP_MODEL_IDS);
+    }
   }
 
   // Зоны высадки

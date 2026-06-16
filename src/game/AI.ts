@@ -1,6 +1,15 @@
 import type { Position, ShotResult, Unit } from '../types';
 import { calculateHitChance, getTilesInBlast, resolveShot } from './Combat';
 import { GRID_H, GRID_W, Grid } from './Grid';
+import {
+  buildAlienBrief,
+  buildSoldierBrief,
+  claimTarget,
+  findBestTacticalMove,
+  idealFocusPoint,
+  pickSpreadTarget,
+  type TacticalBrief,
+} from './TacticalAI';
 
 export type AIActionType = 'move' | 'shoot' | 'wait' | 'overwatch' | 'grenade';
 
@@ -25,8 +34,10 @@ export function planNextSoldierAction(
   const aliveAliens = aliens.filter(a => a.isAlive);
   if (aliveAliens.length === 0) return { type: 'wait', unit: soldier };
 
+  const brief = buildSoldierBrief(soldiers, aliens, grid);
   const pos = soldier.position;
   const visible = aliveAliens.filter(a => grid.hasLineOfSight(pos, a.position));
+  const role = brief.roles.get(soldier.id) ?? 'vanguard';
 
   if (!soldier.hasActed && soldier.actionPoints >= 1) {
     if (soldier.className === 'Heavy') {
@@ -42,7 +53,7 @@ export function planNextSoldierAction(
 
       if (dist <= soldier.weapon.range) {
         const chance = calculateHitChance(soldier, target, grid);
-        if (chance >= 30) {
+        if (chance >= 28) {
           return {
             type: 'shoot',
             unit: soldier,
@@ -53,8 +64,8 @@ export function planNextSoldierAction(
       }
 
       if (!soldier.hasMoved) {
-        const moveShot = findBestShootTile(soldier, pos, target, grid, occupied);
-        if (moveShot && moveShot.hitChance >= 25) {
+        const moveShot = findBestShootTile(soldier, pos, target, grid, occupied, brief);
+        if (moveShot && moveShot.hitChance >= 22) {
           return {
             type: 'move',
             unit: soldier,
@@ -64,7 +75,15 @@ export function planNextSoldierAction(
         }
       }
 
-      if (soldier.className === 'Sniper' || soldier.className === 'Support') {
+      if (role === 'sniper' || role === 'anchor' || soldier.className === 'Support') {
+        if (dist <= soldier.weapon.range && calculateHitChance(soldier, target, grid) >= 15) {
+          return {
+            type: 'shoot',
+            unit: soldier,
+            target,
+            aimPos: { ...target.position },
+          };
+        }
         return { type: 'overwatch', unit: soldier };
       }
 
@@ -80,27 +99,39 @@ export function planNextSoldierAction(
   }
 
   if (soldier.actionPoints >= 1 && !soldier.hasMoved) {
-    const focus = visible[0] ?? aliveAliens.reduce((best, a) =>
-      grid.manhattan(pos, a.position) < grid.manhattan(pos, best.position) ? a : best
-    );
+    const focusEnemy =
+      visible[0] ??
+      (brief.contactActive
+        ? aliveAliens.reduce((best, a) =>
+            grid.manhattan(brief.contactPoint!, a.position) <
+            grid.manhattan(brief.contactPoint!, best.position)
+              ? a
+              : best
+          )
+        : aliveAliens.reduce((best, a) =>
+            grid.pathDistance(pos, a.position, occupied) < grid.pathDistance(pos, best.position, occupied)
+              ? a
+              : best
+          ));
 
-    const advance = findAdvanceTile(soldier, pos, focus, grid, occupied);
+    const focus = idealFocusPoint(soldier, brief, pos);
+    const rallying = brief.contactActive && visible.length === 0;
+    const advance = findBestTacticalMove(soldier, pos, focus, brief, grid, occupied, {
+      preferCover: !rallying && (role === 'sniper' || role === 'anchor'),
+      preferLos: visible.length > 0,
+      losTarget: rallying && brief.contactPoint
+        ? brief.contactPoint
+        : focusEnemy.position,
+      range: soldier.weapon.range,
+      minimizeDist: rallying || role === 'vanguard' || role === 'flanker',
+    });
+
     if (advance) {
       return {
         type: 'move',
         unit: soldier,
         path: advance.path,
         endPos: advance.endPos,
-      };
-    }
-
-    const closer = tryMoveCloser(soldier, pos, focus, grid, occupied);
-    if (closer) {
-      return {
-        type: 'move',
-        unit: soldier,
-        path: closer.path,
-        endPos: closer.endPos,
       };
     }
   }
@@ -120,26 +151,27 @@ export function planAlienTurn(
 ): AIAction[] {
   const actions: AIAction[] = [];
   const aliveSoldiers = soldiers.filter(s => s.isAlive);
+  if (aliveSoldiers.length === 0) return actions;
+
+  const brief = buildAlienBrief(aliens, soldiers, grid);
   const simPos = new Map<string, Position>();
   const simOccupied = new Set(occupied);
+  const targetClaims = new Map<string, number>();
 
   for (const alien of aliens) {
-    if (alien.isAlive) {
-      simPos.set(alien.id, { ...alien.position });
-    }
+    if (alien.isAlive) simPos.set(alien.id, { ...alien.position });
   }
 
   for (const alien of aliens) {
     if (!alien.isAlive) continue;
 
     const pos = simPos.get(alien.id)!;
-
-    const visibleSoldiers = aliveSoldiers.filter(s =>
-      grid.hasLineOfSight(pos, s.position)
-    );
+    const role = brief.roles.get(alien.id) ?? 'vanguard';
+    const visibleSoldiers = aliveSoldiers.filter(s => grid.hasLineOfSight(pos, s.position));
 
     if (visibleSoldiers.length > 0) {
-      const bestTarget = pickBestTarget(alien, visibleSoldiers, grid, pos);
+      const bestTarget = pickSpreadTarget(alien, visibleSoldiers, targetClaims);
+      claimTarget(targetClaims, bestTarget.id);
       const dist = grid.manhattan(pos, bestTarget.position);
 
       if (dist <= alien.weapon.range) {
@@ -153,7 +185,16 @@ export function planAlienTurn(
         continue;
       }
 
-      const moveAndShoot = tryMoveCloser(alien, pos, bestTarget, grid, simOccupied);
+      const moveAndShoot = findAlienTacticalMove(
+        alien,
+        pos,
+        bestTarget,
+        brief,
+        grid,
+        simOccupied,
+        true
+      );
+
       if (moveAndShoot) {
         simOccupied.delete(`${pos.x},${pos.y}`);
         simOccupied.add(`${moveAndShoot.endPos.x},${moveAndShoot.endPos.y}`);
@@ -175,36 +216,82 @@ export function planAlienTurn(
             target: bestTarget,
             shotResult: result,
           });
+        } else if (role === 'sniper') {
+          actions.push({ type: 'overwatch', unit: alien });
         }
         continue;
       }
     }
 
-    if (aliveSoldiers.length > 0) {
-      const nearest = aliveSoldiers.reduce((best, s) => {
-        const d1 = grid.manhattan(pos, best.position);
-        const d2 = grid.manhattan(pos, s.position);
-        return d2 < d1 ? s : best;
-      });
+    const rallying = brief.contactActive && visibleSoldiers.length === 0;
+    const nearest = rallying && brief.contactPoint
+      ? aliveSoldiers.reduce((best, s) =>
+          grid.manhattan(brief.contactPoint!, s.position) <
+          grid.manhattan(brief.contactPoint!, best.position)
+            ? s
+            : best
+        )
+      : pickSpreadTarget(alien, aliveSoldiers, targetClaims);
+    if (!rallying) claimTarget(targetClaims, nearest.id);
 
-      const moveResult = tryMoveCloser(alien, pos, nearest, grid, simOccupied);
-      if (moveResult) {
-        simOccupied.delete(`${pos.x},${pos.y}`);
-        simOccupied.add(`${moveResult.endPos.x},${moveResult.endPos.y}`);
-        simPos.set(alien.id, moveResult.endPos);
-        actions.push({
-          type: 'move',
-          unit: alien,
-          path: moveResult.path,
-          endPos: moveResult.endPos,
-        });
-      } else {
-        actions.push({ type: 'wait', unit: alien });
-      }
+    const moveResult = findAlienTacticalMove(
+      alien,
+      pos,
+      nearest,
+      brief,
+      grid,
+      simOccupied,
+      false,
+      rallying
+    );
+
+    if (moveResult) {
+      simOccupied.delete(`${pos.x},${pos.y}`);
+      simOccupied.add(`${moveResult.endPos.x},${moveResult.endPos.y}`);
+      simPos.set(alien.id, moveResult.endPos);
+      actions.push({
+        type: 'move',
+        unit: alien,
+        path: moveResult.path,
+        endPos: moveResult.endPos,
+      });
+    } else if (role === 'sniper' && visibleSoldiers.length > 0) {
+      actions.push({ type: 'overwatch', unit: alien });
+    } else {
+      actions.push({ type: 'wait', unit: alien });
     }
   }
 
   return actions;
+}
+
+function findAlienTacticalMove(
+  unit: Unit,
+  from: Position,
+  target: Unit,
+  brief: TacticalBrief,
+  grid: Grid,
+  occupied: Set<string>,
+  preferLos: boolean,
+  rallying = false
+): { path: Position[]; endPos: Position; canShoot: boolean } | null {
+  const role = brief.roles.get(unit.id) ?? 'vanguard';
+  const focus = idealFocusPoint(unit, brief, from);
+  const move = findBestTacticalMove(unit, from, focus, brief, grid, occupied, {
+    preferCover: !rallying && role === 'sniper',
+    preferLos: preferLos,
+    losTarget: rallying && brief.contactPoint ? brief.contactPoint : target.position,
+    range: unit.weapon.range,
+    minimizeDist: rallying || role === 'vanguard' || role === 'flanker',
+  });
+
+  if (!move) return null;
+
+  const canShoot =
+    grid.manhattan(move.endPos, target.position) <= unit.weapon.range &&
+    grid.hasLineOfSight(move.endPos, target.position);
+
+  return { path: move.path, endPos: move.endPos, canShoot };
 }
 
 function findBestGrenadePos(
@@ -251,7 +338,8 @@ function findBestShootTile(
   from: Position,
   target: Unit,
   grid: Grid,
-  occupied: Set<string>
+  occupied: Set<string>,
+  brief: TacticalBrief
 ): { path: Position[]; endPos: Position; hitChance: number } | null {
   const reachable = grid.getReachableTiles(from, unit.mobility, occupied);
   let best: { path: Position[]; endPos: Position; hitChance: number } | null = null;
@@ -266,47 +354,21 @@ function findBestShootTile(
     const chance = calculateHitChance(shooterAt, target, grid);
     const cover = grid.getCoverAt(tile);
     const coverBonus = cover === 'full' ? 15 : cover === 'half' ? 8 : 0;
-    const score = chance + coverBonus;
+    const path = grid.findPath(from, tile, occupied);
+    if (!path || path.length <= 1) continue;
+
+    const cohesion = brief.buddies.get(unit.id)
+      ? (Math.abs(tile.x - brief.buddies.get(unit.id)!.position.x) +
+          Math.abs(tile.y - brief.buddies.get(unit.id)!.position.y) <= 5
+          ? 6
+          : 0)
+      : 0;
+    const score = chance + coverBonus + cohesion - (path.length - 1) * 0.4;
 
     if (score > bestScore) {
-      const path = grid.findPath(from, tile, occupied);
-      if (!path || path.length <= 1) continue;
       bestScore = score;
       best = { path, endPos: tile, hitChance: chance };
     }
-  }
-
-  return best;
-}
-
-function findAdvanceTile(
-  unit: Unit,
-  from: Position,
-  target: Unit,
-  grid: Grid,
-  occupied: Set<string>
-): { path: Position[]; endPos: Position } | null {
-  const reachable = grid.getReachableTiles(from, unit.mobility, occupied);
-  const prefersDistance = unit.className === 'Sniper';
-  let best: { path: Position[]; endPos: Position } | null = null;
-  let bestScore = prefersDistance ? -Infinity : Infinity;
-
-  for (const tile of reachable) {
-    const dist = grid.manhattan(tile, target.position);
-    const cover = grid.getCoverAt(tile);
-    const coverBonus = cover === 'full' ? 3 : cover === 'half' ? 1.5 : 0;
-    const losBonus = grid.hasLineOfSight(tile, target.position) ? 2 : 0;
-    const score = prefersDistance
-      ? dist + coverBonus * 2 + losBonus
-      : dist - coverBonus * 2 - losBonus;
-
-    const isBetter = prefersDistance ? score > bestScore : score < bestScore;
-    if (!isBetter) continue;
-
-    const path = grid.findPath(from, tile, occupied);
-    if (!path || path.length <= 1) continue;
-    bestScore = score;
-    best = { path, endPos: tile };
   }
 
   return best;
@@ -320,37 +382,4 @@ function pickBestTarget(shooter: Unit, targets: Unit[], grid: Grid, pos: Positio
     if (chanceT !== chanceBest) return chanceT > chanceBest ? t : best;
     return t.hp < best.hp ? t : best;
   });
-}
-
-function tryMoveCloser(
-  unit: Unit,
-  from: Position,
-  target: Unit,
-  grid: Grid,
-  occupied: Set<string>
-): { path: Position[]; endPos: Position; canShoot: boolean } | null {
-  const reachable = grid.getReachableTiles(from, unit.mobility, occupied);
-  if (reachable.length === 0) return null;
-
-  let bestTile: Position | null = null;
-  let bestDist = Infinity;
-
-  for (const tile of reachable) {
-    const dist = grid.manhattan(tile, target.position);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestTile = tile;
-    }
-  }
-
-  if (!bestTile) return null;
-
-  const path = grid.findPath(from, bestTile, occupied);
-  if (!path || path.length <= 1) return null;
-
-  const canShoot =
-    bestDist <= unit.weapon.range &&
-    grid.hasLineOfSight(bestTile, target.position);
-
-  return { path, endPos: bestTile, canShoot };
 }

@@ -537,6 +537,13 @@ export class Battle {
       this.isAnimating = false;
       this.checkVictory();
       this.notify();
+    } else if (action.type === 'overwatch') {
+      action.unit.isOverwatching = true;
+      action.unit.hasActed = true;
+      action.unit.actionPoints = 0;
+      this.log(`${action.unit.name} на дозоре.`, 'info');
+      if (this.animations) this.animations.playOverwatchActivate(action.unit.id);
+      this.notify();
     }
   }
 

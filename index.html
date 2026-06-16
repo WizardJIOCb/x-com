@@ -2,7 +2,10 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#0a0e14" />
     <title>XCOM: Enemy Unknown — Browser</title>
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
@@ -21,9 +24,13 @@
       </header>
 
       <main class="game-layout">
-        <aside id="unit-panel" class="unit-panel"></aside>
+        <aside id="unit-panel" class="unit-panel">
+          <div id="squad-section" class="panel-section"></div>
+          <div id="enemy-section" class="panel-section"></div>
+        </aside>
         <div class="canvas-wrap">
           <div id="game-container"></div>
+          <div id="soldier-strip" class="soldier-strip"></div>
           <div id="action-bar" class="action-bar"></div>
         </div>
         <aside id="log-panel" class="log-panel">
@@ -31,6 +38,25 @@
           <div id="combat-log" class="combat-log"></div>
         </aside>
       </main>
+
+      <nav id="mobile-dock" class="mobile-dock" aria-label="Мобильная навигация">
+        <button type="button" class="dock-tab active" data-tab="map" aria-label="Карта">
+          <span class="dock-icon">🗺</span>
+          <span class="dock-label">Карта</span>
+        </button>
+        <button type="button" class="dock-tab" data-tab="squad" aria-label="Отряд">
+          <span class="dock-icon">🎖</span>
+          <span class="dock-label">Отряд</span>
+        </button>
+        <button type="button" class="dock-tab" data-tab="enemies" aria-label="Враги">
+          <span class="dock-icon">👾</span>
+          <span class="dock-label">Враги</span>
+        </button>
+        <button type="button" class="dock-tab" data-tab="log" aria-label="Журнал">
+          <span class="dock-icon">📋</span>
+          <span class="dock-label">Журнал</span>
+        </button>
+      </nav>
 
       <div id="overlay" class="overlay hidden">
         <div class="overlay-content">
