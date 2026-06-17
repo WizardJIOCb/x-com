@@ -68,6 +68,10 @@ export function getTexturesForModel(modelPath: string): PbrTextureSet {
   return result;
 }
 
+function hasAnyTexture(set: PbrTextureSet): boolean {
+  return !!(set.basecolor || set.normal || set.roughness || set.metallic);
+}
+
 function textureLabel(url: string): string {
   const name = url.split('/').pop() ?? url;
   return name.replace(/\.(jpe?g|png|webp)$/i, '');
@@ -90,10 +94,15 @@ async function loadCached(url: string, colorSpace: THREE.ColorSpace): Promise<TH
 
 export async function applyPbrTextures(
   object: THREE.Object3D,
-  modelPath: string
+  modelPath: string,
+  fallbackModelPaths: string[] = []
 ): Promise<void> {
-  const set = getTexturesForModel(modelPath);
-  if (!set.basecolor && !set.normal && !set.roughness && !set.metallic) return;
+  let set = getTexturesForModel(modelPath);
+  for (const fallbackPath of fallbackModelPaths) {
+    if (hasAnyTexture(set)) break;
+    set = getTexturesForModel(fallbackPath);
+  }
+  if (!hasAnyTexture(set)) return;
 
   const [map, normalMap, roughnessMap, metalnessMap] = await Promise.all([
     set.basecolor ? loadCached(set.basecolor, THREE.SRGBColorSpace) : null,

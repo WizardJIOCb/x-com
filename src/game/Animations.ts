@@ -384,8 +384,8 @@ export class AnimationManager {
 
     const mesh = this.meshProvider?.(unitId);
     if (mesh) {
-      const usesIdleBody = this.prepareDeathMesh(mesh);
-      if (usesIdleBody) {
+      const deathBody = this.prepareDeathMesh(mesh);
+      if (deathBody === 'idle') {
         v.rigActive = false;
       } else {
         this.rigAnimator.playDeath(unitId);
@@ -411,7 +411,7 @@ export class AnimationManager {
           this.onRagdollDetach?.(unitId);
           this.ragdollManager.spawn(mesh);
           resolve();
-        }, usesIdleBody ? 60 : 220);
+        }, deathBody === 'idle' ? 60 : 260);
       });
     }
 
@@ -440,14 +440,85 @@ export class AnimationManager {
     this.spawnBurst(center, 0xffa502, 16, 0.5);
   }
 
-  private prepareDeathMesh(mesh: THREE.Group): boolean {
+  private prepareDeathMesh(mesh: THREE.Group): 'rigged' | 'idle' | 'plain' {
     const idleBody = mesh.getObjectByName('unitIdleBody');
     const rigBody = mesh.getObjectByName('unitBody');
-    if (!idleBody) return false;
+    this.clearMaterialFlash(mesh);
 
-    idleBody.visible = true;
-    if (rigBody) rigBody.visible = false;
-    return true;
+    if (rigBody && this.hasSkinnedMesh(rigBody)) {
+      if (idleBody) this.copySurfaceMaterial(idleBody, rigBody);
+      rigBody.visible = true;
+      if (idleBody) idleBody.visible = false;
+      return 'rigged';
+    }
+
+    if (idleBody) {
+      idleBody.visible = true;
+      if (rigBody) rigBody.visible = false;
+      return 'idle';
+    }
+
+    return 'plain';
+  }
+
+  private hasSkinnedMesh(root: THREE.Object3D): boolean {
+    let found = false;
+    root.traverse(child => {
+      if (child instanceof THREE.SkinnedMesh) found = true;
+    });
+    return found;
+  }
+
+  private copySurfaceMaterial(from: THREE.Object3D, to: THREE.Object3D): void {
+    const source = this.findTexturedMaterial(from);
+    if (!source) return;
+
+    to.traverse(child => {
+      if (!(child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh)) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (!(material instanceof THREE.MeshStandardMaterial)) continue;
+        material.map = source.map ?? material.map;
+        material.normalMap = source.normalMap ?? material.normalMap;
+        material.roughnessMap = source.roughnessMap ?? material.roughnessMap;
+        material.metalnessMap = source.metalnessMap ?? material.metalnessMap;
+        material.color.copy(source.color);
+        material.roughness = source.roughness;
+        material.metalness = source.metalness;
+        material.needsUpdate = true;
+      }
+    });
+  }
+
+  private findTexturedMaterial(root: THREE.Object3D): THREE.MeshStandardMaterial | null {
+    let found: THREE.MeshStandardMaterial | null = null;
+
+    root.traverse(child => {
+      if (found || !(child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh)) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (material instanceof THREE.MeshStandardMaterial && material.map) {
+          found = material;
+          return;
+        }
+      }
+    });
+
+    return found;
+  }
+
+  private clearMaterialFlash(root: THREE.Object3D): void {
+    root.traverse(child => {
+      if (!(child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh)) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (material instanceof THREE.MeshStandardMaterial) {
+          material.emissive.setHex(0x000000);
+          material.emissiveIntensity = 0;
+          material.needsUpdate = true;
+        }
+      }
+    });
   }
 
   spawnExplosion(center: THREE.Vector3): void {

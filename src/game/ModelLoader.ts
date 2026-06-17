@@ -123,12 +123,13 @@ export class ModelLoader {
     loader: FBXLoader,
     url: string,
     modelPath: string,
-    label: string
+    label: string,
+    fallbackTexturePaths: string[] = []
   ): Promise<THREE.Group> {
     loader.setResourcePath('');
     const root = await loadFbxWithoutEmbeddedTextures(loader, url, label);
     this.stripEmbeddedFbxTextures(root);
-    await applyPbrTextures(root, modelPath);
+    await applyPbrTextures(root, modelPath, fallbackTexturePaths);
     return root;
   }
 
@@ -178,7 +179,14 @@ export class ModelLoader {
         // Ригованные animfix-FBX — walk/death клипы; статика — запасной вариант
         if (job.riggedUrl && job.riggedPath) {
           try {
-            const root = await this.loadFbx(loader, job.riggedUrl, job.riggedPath, job.id);
+            const fallbackTextures = job.staticPath ? [job.staticPath] : [];
+            const root = await this.loadFbx(
+              loader,
+              job.riggedUrl,
+              job.riggedPath,
+              job.id,
+              fallbackTextures
+            );
             this.registerTemplate(job.id, root, 'unit', 0.85);
             return;
           } catch (err) {
