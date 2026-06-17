@@ -530,6 +530,7 @@ export class AnimationManager {
     for (const p of this.particles) {
       this.effectsGroup.remove(p.mesh);
       (p.mesh.material as THREE.Material).dispose();
+      p.mesh.geometry.dispose();
     }
     for (const t of this.tracers) {
       this.effectsGroup.remove(t.line);
@@ -537,6 +538,27 @@ export class AnimationManager {
       (t.line.material as THREE.Material).dispose();
     }
     for (const l of this.floatingLabels) l.element.remove();
+
+    for (const child of [...this.effectsGroup.children]) {
+      this.effectsGroup.remove(child);
+      child.traverse(obj => {
+        if (!(obj instanceof THREE.Mesh || obj instanceof THREE.Line)) return;
+        obj.geometry.dispose();
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material.dispose();
+      });
+    }
+
+    if (this.grenadeMesh) {
+      this.grenadeMesh.geometry.dispose();
+      if (Array.isArray(this.grenadeMesh.material)) {
+        this.grenadeMesh.material.forEach(m => m.dispose());
+      } else {
+        this.grenadeMesh.material.dispose();
+      }
+      this.grenadeMesh = null;
+    }
+
     this.particles = [];
     this.tracers = [];
     this.floatingLabels = [];

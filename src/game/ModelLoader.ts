@@ -220,6 +220,7 @@ export class ModelLoader {
           ? this.wrapAndNormalizeRig(root, size)
           : this.normalizeStaticModel(root, size)
         : this.normalizeStaticModel(root, size);
+    group.userData.category = category;
 
     const box = new THREE.Box3().setFromObject(group);
     const dims = new THREE.Vector3();
@@ -235,6 +236,7 @@ export class ModelLoader {
         ? manifestOffset
         : this.detectUnitFacingOffset(group);
       group.userData.facingOffset = facingOffset;
+      this.prepareUnitForRendering(group);
     }
 
     this.templates.set(id, {
@@ -325,6 +327,14 @@ export class ModelLoader {
       }
     });
     object.updateMatrixWorld(true);
+  }
+
+  private prepareUnitForRendering(object: THREE.Object3D): void {
+    object.traverse(child => {
+      if (child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh) {
+        child.frustumCulled = false;
+      }
+    });
   }
 
   /** Поворот ригованного юнита через корневую кость — не ломает bindMatrix */
@@ -535,7 +545,10 @@ export class ModelLoader {
     }
 
     clone.traverse(child => {
-      if (child instanceof THREE.Mesh && !(child instanceof THREE.SkinnedMesh)) {
+      if (child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh) {
+        if (source.userData.category === 'unit' || source.userData.isRigged) {
+          child.frustumCulled = false;
+        }
         if (Array.isArray(child.material)) {
           child.material = child.material.map(m => m.clone());
         } else if (child.material) {
