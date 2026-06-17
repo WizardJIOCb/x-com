@@ -276,8 +276,16 @@ export function scoreMoveTile(
 
   let score = 0;
 
-  if (opts.minimizeDist) {
-    score -= distToFocus * 4;
+  if (opts.minimizeDist && opts.losTarget) {
+    const pathHere = grid.pathDistance(tile, opts.losTarget, occupied);
+    const pathFrom = grid.pathDistance(from, opts.losTarget, occupied);
+    score += (pathFrom - pathHere) * 42;
+    score -= pathHere * 3.5;
+  } else if (opts.minimizeDist) {
+    const pathHere = grid.pathDistance(tile, focus, occupied);
+    const pathFrom = grid.pathDistance(from, focus, occupied);
+    score += (pathFrom - pathHere) * 38;
+    score -= pathHere * 3;
   } else if (role === 'sniper') {
     const ideal = 9;
     score -= Math.abs(distToFocus - ideal) * 3;
@@ -361,7 +369,7 @@ export function findRallyMove(
   occupied: Set<string>
 ): MoveCandidate | null {
   if (!brief.contactActive || !brief.contactPoint) return null;
-  return findBestTacticalMove(
+  const tactical = findBestTacticalMove(
     unit,
     unit.position,
     brief.contactPoint,
@@ -376,6 +384,41 @@ export function findRallyMove(
       losTarget: brief.contactPoint,
     }
   );
+  if (tactical) return tactical;
+
+  const path = grid.findApproachPath(
+    unit.position,
+    brief.contactPoint,
+    occupied,
+    unit.mobility
+  );
+  if (!path || path.length <= 1) return null;
+  return { path, endPos: path[path.length - 1], score: 0 };
+}
+
+export function findApproachMove(
+  unit: Unit,
+  target: Position,
+  brief: TacticalBrief,
+  grid: Grid,
+  occupied: Set<string>,
+  opts: {
+    preferLos?: boolean;
+    losTarget?: Position;
+    range?: number;
+  } = {}
+): MoveCandidate | null {
+  const tactical = findBestTacticalMove(unit, unit.position, target, brief, grid, occupied, {
+    minimizeDist: true,
+    preferLos: opts.preferLos,
+    losTarget: opts.losTarget ?? target,
+    range: opts.range,
+  });
+  if (tactical) return tactical;
+
+  const path = grid.findApproachPath(unit.position, target, occupied, unit.mobility);
+  if (!path || path.length <= 1) return null;
+  return { path, endPos: path[path.length - 1], score: 0 };
 }
 
 export function pickSpreadTarget(

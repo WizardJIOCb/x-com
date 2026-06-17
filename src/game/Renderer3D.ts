@@ -352,6 +352,12 @@ export class Renderer3D {
       }
 
       if (isRigged) {
+        const rigBody = mesh.getObjectByName('unitBody');
+        const idleBody = mesh.getObjectByName('unitIdleBody');
+        if (idleBody && rigBody) {
+          rigBody.visible = visual.rigActive || visual.ragdollActive;
+          idleBody.visible = !rigBody.visible;
+        }
         if (bodyPivot) bodyPivot.scale.setScalar(1);
       } else if (bodyPivot) {
         bodyPivot.scale.setScalar(visualScale);

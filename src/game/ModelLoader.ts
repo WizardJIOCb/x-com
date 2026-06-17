@@ -31,6 +31,8 @@ export interface NormalizedModel {
   animations: THREE.AnimationClip[];
 }
 
+const IDLE_MODEL_SUFFIX = '__idle';
+
 let fbxTexturePatchDepth = 0;
 let savedTextureLoaderLoad: typeof THREE.TextureLoader.prototype.load | null = null;
 let fbxParseChain: Promise<unknown> = Promise.resolve();
@@ -163,6 +165,16 @@ export class ModelLoader {
       jobs.map(async job => {
         if (this.templates.has(job.id)) return;
 
+        const idleId = this.idleModelId(job.id);
+        if (job.staticUrl && job.staticPath && !this.templates.has(idleId)) {
+          try {
+            const idleRoot = await this.loadFbx(loader, job.staticUrl, job.staticPath, `${job.id}:idle`);
+            this.registerTemplate(idleId, idleRoot, 'unit', 0.85);
+          } catch (err) {
+            console.warn(`[ModelLoader] Static idle model ${job.id}:`, err);
+          }
+        }
+
         // Ригованные animfix-FBX — walk/death клипы; статика — запасной вариант
         if (job.riggedUrl && job.riggedPath) {
           try {
@@ -196,6 +208,9 @@ export class ModelLoader {
     targetSize?: number
   ): void {
     this.prepareMeshes(root);
+    if (category === 'unit' && this.hasSkinnedMesh(root)) {
+      root.animations = this.sanitizeUnitAnimations(root, root.animations ?? []);
+    }
 
     const size =
       (targetSize ?? this.defaultTargetSize(category)) * modelScaleMultiplier(id);
@@ -228,6 +243,24 @@ export class ModelLoader {
       baseDepth: dims.z || 1,
       baseHeight: dims.y || 1,
       animations: group.animations ?? [],
+    });
+  }
+
+  private sanitizeUnitAnimations(root: THREE.Object3D, clips: THREE.AnimationClip[]): THREE.AnimationClip[] {
+    const boneNames = new Set<string>();
+    root.traverse(child => {
+      if (child instanceof THREE.Bone) boneNames.add(child.name);
+    });
+
+    return clips.map(clip => {
+      const tracks = clip.tracks.filter(track => {
+        if (!track.name.endsWith('.quaternion')) return false;
+        const targetName = track.name.slice(0, track.name.indexOf('.'));
+        return boneNames.has(targetName);
+      });
+      const clean = new THREE.AnimationClip(clip.name, clip.duration, tracks);
+      clean.optimize();
+      return clean;
     });
   }
 
@@ -443,6 +476,18 @@ export class ModelLoader {
     }
 
     return null;
+  }
+
+  idleModelId(modelId: string): string {
+    return `${modelId}${IDLE_MODEL_SUFFIX}`;
+  }
+
+  getUnitIdleModelId(unit: { team: string; className: string; modelId?: string }): string | null {
+    const modelId = this.getUnitModelId(unit);
+    if (!modelId) return null;
+
+    const idleId = this.idleModelId(modelId);
+    return this.has(idleId) ? idleId : null;
   }
 
   getAnimations(id: string): THREE.AnimationClip[] {

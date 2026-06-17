@@ -163,7 +163,18 @@ function addUnitBody(
     const body = modelLoader.clone(modelId);
     if (body) {
       body.name = 'unitBody';
+      body.visible = false;
       pivot.add(body);
+
+      const idleModelId = modelLoader.getUnitIdleModelId(unit);
+      const idleBody = idleModelId ? modelLoader.clone(idleModelId) : null;
+      if (idleBody) {
+        idleBody.name = 'unitIdleBody';
+        pivot.add(idleBody);
+      } else {
+        body.visible = true;
+      }
+
       return {
         isRigged: modelLoader.hasSkinnedMesh(body),
         facingOffset: modelLoader.getFacingOffset(modelId),

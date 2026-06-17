@@ -36,7 +36,14 @@ export class Grid {
   }
 
   blocksLineOfSight(tile: Tile): boolean {
-    return tile.type === 'wall' || (tile.type === 'destructible_wall' && tile.hp > 0);
+    if (tile.type === 'wall') return true;
+    if (tile.type === 'destructible_wall' && tile.hp > 0) return true;
+    if (tile.type === 'destructible' && tile.hp > 0) return true;
+    return false;
+  }
+
+  blocksShooting(tile: Tile): boolean {
+    return this.blocksLineOfSight(tile);
   }
 
   isWalkable(x: number, y: number, occupied: Set<string>): boolean {
@@ -104,13 +111,8 @@ export class Grid {
       .filter(p => this.getTile(p.x, p.y) !== null);
   }
 
-  private moveCost(tile: Position): number {
-    let cost = 1;
-    for (const n of this.getNeighbors(tile)) {
-      const t = this.getTile(n.x, n.y);
-      if (t && this.blocksMovement(t)) cost += 0.15;
-    }
-    return cost;
+  private stepCost(_tile: Position): number {
+    return 1;
   }
 
   pathDistance(start: Position, goal: Position, occupied: Set<string>): number {
@@ -168,7 +170,7 @@ export class Grid {
           continue;
         }
 
-        const step = this.moveCost(neighbor);
+        const step = this.stepCost(neighbor);
         const tentativeG = (gScore.get(currentKey) ?? 0) + step;
         if (tentativeG >= (gScore.get(nKey) ?? Infinity)) continue;
 
@@ -185,25 +187,52 @@ export class Grid {
 
   getReachableTiles(start: Position, maxDist: number, occupied: Set<string>): Position[] {
     const reachable: Position[] = [];
-    const visited = new Set<string>();
-    const queue: { pos: Position; dist: number }[] = [{ pos: start, dist: 0 }];
-    visited.add(`${start.x},${start.y}`);
+    const bestCost = new Map<string, number>();
+    const queue: { pos: Position; cost: number }[] = [{ pos: start, cost: 0 }];
+    bestCost.set(`${start.x},${start.y}`, 0);
 
     while (queue.length > 0) {
-      const { pos, dist } = queue.shift()!;
-      if (dist > 0) reachable.push(pos);
-
-      if (dist >= maxDist) continue;
+      const { pos, cost } = queue.shift()!;
+      if (cost > 0) reachable.push(pos);
+      if (cost >= maxDist) continue;
 
       for (const neighbor of this.getNeighbors(pos)) {
         const nKey = `${neighbor.x},${neighbor.y}`;
-        if (visited.has(nKey)) continue;
+        const nextCost = cost + this.stepCost(neighbor);
+        if (nextCost > maxDist) continue;
         if (!this.isWalkable(neighbor.x, neighbor.y, occupied)) continue;
-        visited.add(nKey);
-        queue.push({ pos: neighbor, dist: dist + 1 });
+        if ((bestCost.get(nKey) ?? Infinity) <= nextCost) continue;
+        bestCost.set(nKey, nextCost);
+        queue.push({ pos: neighbor, cost: nextCost });
       }
     }
     return reachable;
+  }
+
+  /** Путь к цели или к ближайшей достижимой клетке (обход стен и заборов) */
+  findApproachPath(
+    start: Position,
+    goal: Position,
+    occupied: Set<string>,
+    maxSteps: number
+  ): Position[] | null {
+    const direct = this.findPath(start, goal, occupied);
+    if (direct && direct.length > 1 && direct.length - 1 <= maxSteps) return direct;
+
+    const reachable = this.getReachableTiles(start, maxSteps, occupied);
+    let bestTile: Position | null = null;
+    let bestDist = Infinity;
+
+    for (const tile of reachable) {
+      const d = this.pathDistance(tile, goal, occupied);
+      if (d < bestDist) {
+        bestDist = d;
+        bestTile = tile;
+      }
+    }
+
+    if (!bestTile || bestDist === Infinity) return null;
+    return this.findPath(start, bestTile, occupied);
   }
 
   hasLineOfSight(from: Position, to: Position): boolean {

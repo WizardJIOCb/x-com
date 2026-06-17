@@ -1,10 +1,17 @@
 import type { Position, ShotResult, Unit } from '../types';
-import { calculateHitChance, getTilesInBlast, resolveShot } from './Combat';
+import {
+  analyzeShootThrough,
+  calculateHitChance,
+  getTilesInBlast,
+  resolveShot,
+  shouldShootThroughObstacle,
+} from './Combat';
 import { GRID_H, GRID_W, Grid } from './Grid';
 import {
   buildAlienBrief,
   buildSoldierBrief,
   claimTarget,
+  findApproachMove,
   findBestTacticalMove,
   findRallyMove,
   idealFocusPoint,
@@ -67,6 +74,15 @@ export function planNextSoldierAction(
         return { type: 'grenade', unit: soldier, grenadePos };
       }
     }
+
+    const shootThrough = findShootThroughAction(
+      soldier,
+      aliveAliens,
+      soldiers,
+      aliens,
+      grid
+    );
+    if (shootThrough) return shootThrough;
 
     if (visible.length > 0) {
       const target = pickBestTarget(soldier, visible, grid, pos);
@@ -147,16 +163,23 @@ export function planNextSoldierAction(
 
     const focus = idealFocusPoint(soldier, brief, pos);
     const rallying = brief.contactActive && !inCombat;
-    const advance = findBestTacticalMove(soldier, pos, focus, brief, grid, occupied, {
-      preferCover: !rallying && (role === 'sniper' || role === 'anchor'),
-      preferLos: visible.length > 0,
-      losTarget: rallying && brief.contactPoint
-        ? brief.contactPoint
-        : focusEnemy.position,
-      range: soldier.weapon.range,
-      minimizeDist: rallying || role === 'vanguard' || role === 'flanker',
-      rallying,
-    });
+    const advance =
+      findApproachMove(soldier, focusEnemy.position, brief, grid, occupied, {
+        preferLos: visible.length > 0,
+        losTarget:
+          rallying && brief.contactPoint ? brief.contactPoint : focusEnemy.position,
+        range: soldier.weapon.range,
+      }) ??
+      findBestTacticalMove(soldier, pos, focus, brief, grid, occupied, {
+        preferCover: !rallying && (role === 'sniper' || role === 'anchor'),
+        preferLos: visible.length > 0,
+        losTarget: rallying && brief.contactPoint
+          ? brief.contactPoint
+          : focusEnemy.position,
+        range: soldier.weapon.range,
+        minimizeDist: rallying || role === 'vanguard' || role === 'flanker',
+        rallying,
+      });
 
     if (advance) {
       return {
@@ -183,12 +206,59 @@ function findCombatAdvance(
   occupied: Set<string>
 ) {
   const focus = idealFocusPoint(soldier, brief, soldier.position);
-  return findBestTacticalMove(soldier, soldier.position, focus, brief, grid, occupied, {
-    preferLos: true,
-    losTarget: target.position,
-    range: soldier.weapon.range,
-    minimizeDist: true,
-  });
+  return (
+    findApproachMove(soldier, target.position, brief, grid, occupied, {
+      preferLos: true,
+      losTarget: target.position,
+      range: soldier.weapon.range,
+    }) ??
+    findBestTacticalMove(soldier, soldier.position, focus, brief, grid, occupied, {
+      preferLos: true,
+      losTarget: target.position,
+      range: soldier.weapon.range,
+      minimizeDist: true,
+    })
+  );
+}
+
+function findShootThroughAction(
+  shooter: Unit,
+  targets: Unit[],
+  allies: Unit[],
+  enemies: Unit[],
+  grid: Grid
+): AIAction | null {
+  const allUnits = [...allies, ...enemies];
+  let best: { target: Unit; analysis: ReturnType<typeof analyzeShootThrough> } | null = null;
+  let bestScore = -1;
+
+  for (const target of targets) {
+    const analysis = analyzeShootThrough(shooter, target, grid, allUnits);
+    if (!analysis) continue;
+    if (
+      !shouldShootThroughObstacle(shooter, target, grid, allies, enemies, analysis)
+    ) {
+      continue;
+    }
+
+    const score =
+      100 -
+      analysis.shotsToBreak * 22 +
+      calculateHitChance(shooter, target, grid, false, true) * 0.5;
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = { target, analysis };
+    }
+  }
+
+  if (!best) return null;
+  return {
+    type: 'shoot',
+    unit: shooter,
+    target: best.target,
+    aimPos: { ...best.target.position },
+  };
 }
 
 export function planAlienTurn(
@@ -233,6 +303,18 @@ export function planAlienTurn(
         });
         continue;
       }
+    }
+
+    const shootThrough = findShootThroughAction(
+      alien,
+      aliveSoldiers,
+      aliens,
+      soldiers,
+      grid
+    );
+    if (shootThrough) {
+      actions.push(shootThrough);
+      continue;
     }
 
     if (visibleSoldiers.length > 0) {
@@ -344,14 +426,21 @@ function findAlienTacticalMove(
 ): { path: Position[]; endPos: Position; canShoot: boolean } | null {
   const role = brief.roles.get(unit.id) ?? 'vanguard';
   const focus = idealFocusPoint(unit, brief, from);
-  const move = findBestTacticalMove(unit, from, focus, brief, grid, occupied, {
-    preferCover: !rallying && role === 'sniper',
-    preferLos: preferLos,
-    losTarget: rallying && brief.contactPoint ? brief.contactPoint : target.position,
-    range: unit.weapon.range,
-    minimizeDist: rallying || role === 'vanguard' || role === 'flanker',
-    rallying,
-  });
+  const losTarget = rallying && brief.contactPoint ? brief.contactPoint : target.position;
+  const move =
+    findApproachMove(unit, losTarget, brief, grid, occupied, {
+      preferLos,
+      losTarget,
+      range: unit.weapon.range,
+    }) ??
+    findBestTacticalMove(unit, from, focus, brief, grid, occupied, {
+      preferCover: !rallying && role === 'sniper',
+      preferLos: preferLos,
+      losTarget,
+      range: unit.weapon.range,
+      minimizeDist: rallying || role === 'vanguard' || role === 'flanker',
+      rallying,
+    });
 
   if (!move) return null;
 

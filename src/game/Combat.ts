@@ -162,6 +162,73 @@ export function getShootableTargets(
   });
 }
 
+export interface ShootThroughAnalysis {
+  ray: ShotRayResult;
+  obstacle: ShotRayHit;
+  shotsToBreak: number;
+  targetVisibleAfterBreak: boolean;
+  targetInRange: boolean;
+}
+
+/** Враг за разрушаемым укрытием/стеной — можно прострелить */
+export function analyzeShootThrough(
+  shooter: Unit,
+  target: Unit,
+  grid: Grid,
+  allUnits: Unit[]
+): ShootThroughAnalysis | null {
+  const dist = grid.manhattan(shooter.position, target.position);
+  if (dist > shooter.weapon.range) return null;
+  if (grid.hasLineOfSight(shooter.position, target.position)) return null;
+
+  const ray = traceShotRay(shooter, target.position, grid, allUnits);
+  if (!ray) return null;
+
+  const obstacle = ray.hits.find(
+    h => h.kind === 'destructible' || h.kind === 'destructible_wall'
+  );
+  if (!obstacle) return null;
+
+  const tile = grid.getTile(obstacle.position.x, obstacle.position.y);
+  if (!tile || tile.hp <= 0) return null;
+
+  const shotsToBreak = Math.ceil(tile.hp / Math.max(1, shooter.weapon.damage));
+  const targetInRange = dist <= shooter.weapon.range;
+
+  return {
+    ray,
+    obstacle,
+    shotsToBreak,
+    targetVisibleAfterBreak: true,
+    targetInRange,
+  };
+}
+
+export function shouldShootThroughObstacle(
+  shooter: Unit,
+  target: Unit,
+  grid: Grid,
+  allies: Unit[],
+  enemies: Unit[],
+  analysis: ShootThroughAnalysis
+): boolean {
+  if (!analysis.targetInRange) return false;
+  if (analysis.shotsToBreak > 3) return false;
+
+  const aliveAllies = allies.filter(u => u.isAlive).length;
+  const aliveEnemies = enemies.filter(u => u.isAlive).length;
+  const numericalAdvantage = aliveAllies >= aliveEnemies + 1;
+
+  if (analysis.shotsToBreak === 1) return true;
+  if (numericalAdvantage && analysis.shotsToBreak <= 2) return true;
+  if (numericalAdvantage && aliveAllies >= aliveEnemies * 1.5 && analysis.shotsToBreak <= 3) {
+    return true;
+  }
+
+  const hitChance = calculateHitChance(shooter, target, grid, false, true);
+  return hitChance >= 35 && analysis.shotsToBreak <= 2;
+}
+
 export function getTilesInBlast(center: Position, radius: number, grid?: Grid): Position[] {
   const tiles: Position[] = [];
   for (let dy = -radius; dy <= radius; dy++) {

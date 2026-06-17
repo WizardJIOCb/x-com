@@ -92,7 +92,7 @@ export class Battle {
     this.turnMode = this.turnMode === 'sequential' ? 'simultaneous' : 'sequential';
     this.log(
       this.turnMode === 'simultaneous'
-        ? 'Режим: параллельный — весь отряд действует одновременно за фазу.'
+        ? 'Режим: параллельный — обе команды действуют одновременно за раунд.'
         : 'Режим: по очереди — один солдат за раз.',
       'info'
     );
@@ -192,16 +192,27 @@ export class Battle {
           continue;
         }
 
-        const active = this.aliveSoldiers.filter(s => s.actionPoints > 0);
-        if (active.length === 0) {
-          await this.endPlayerTurn();
-          await delay(350);
-          continue;
-        }
-
         if (this.turnMode === 'simultaneous') {
-          await this.runSimultaneousSoldierAutoTurn(active);
+          const anyActive =
+            this.aliveSoldiers.some(s => s.actionPoints > 0) ||
+            this.aliveAliens.some(a => a.actionPoints > 0);
+
+          if (!anyActive) {
+            await this.finishSimultaneousRound();
+            await delay(350);
+            continue;
+          }
+
+          await this.runSimultaneousParallelTick();
+          await delay(280);
         } else {
+          const active = this.aliveSoldiers.filter(s => s.actionPoints > 0);
+          if (active.length === 0) {
+            await this.endPlayerTurn();
+            await delay(350);
+            continue;
+          }
+
           const soldier = active[0];
           this.selectedUnit = soldier;
           const action = planNextSoldierAction(
@@ -220,12 +231,12 @@ export class Battle {
 
           await this.executeSoldierAIAction(action);
           await delay(280);
-        }
 
-        if (this.allSoldiersDone() && this.phase === 'player') {
-          await delay(200);
-          await this.endPlayerTurn();
-          await delay(350);
+          if (this.allSoldiersDone() && this.phase === 'player') {
+            await delay(200);
+            await this.endPlayerTurn();
+            await delay(350);
+          }
         }
       }
     } finally {
@@ -237,11 +248,11 @@ export class Battle {
     }
   }
 
-  private async runSimultaneousSoldierAutoTurn(active: Unit[]): Promise<void> {
-    const simOccupied = this.occupiedTiles;
-    const actions: AIAction[] = [];
+  private async runSimultaneousParallelTick(): Promise<boolean> {
+    const simOccupied = new Set(this.occupiedTiles);
+    const executors: Array<() => Promise<void>> = [];
 
-    for (const soldier of active) {
+    for (const soldier of this.aliveSoldiers.filter(s => s.actionPoints > 0)) {
       const action = planNextSoldierAction(
         soldier,
         this.aliens,
@@ -255,18 +266,33 @@ export class Battle {
         continue;
       }
 
-      actions.push(action);
+      executors.push(() => this.executeSoldierAIAction(action));
       this.reserveSimulatedAction(action, simOccupied);
     }
 
-    if (actions.length === 0) {
-      this.notify();
-      return;
+    const alienActions = planAlienTurn(this.aliens, this.soldiers, this.grid, simOccupied);
+    for (const action of alienActions) {
+      executors.push(() => this.executeAIAction(action));
     }
 
-    await Promise.all(actions.map(a => this.executeSoldierAIAction(a)));
+    if (executors.length === 0) {
+      this.notify();
+      return false;
+    }
+
+    await Promise.all(executors.map(run => run()));
     await delay(200);
     this.notify();
+    return true;
+  }
+
+  private async finishSimultaneousRound(): Promise<void> {
+    await this.checkOverwatchAnimated('alien');
+    await this.checkOverwatchAnimated('soldier');
+    this.checkVictory();
+    if (this.phase === 'player') {
+      await this.startNextRound();
+    }
   }
 
   private reserveSimulatedAction(action: AIAction, simOccupied: Set<string>): void {
@@ -312,10 +338,11 @@ export class Battle {
     if (!this.canInteract || !this.canSelectedUnitAct()) return;
     this.hoveredTile = pos;
     if (pos && this.actionMode === 'move' && this.selectedUnit) {
-      const path = this.grid.findPath(
+      const path = this.grid.findApproachPath(
         this.selectedUnit.position,
         pos,
-        this.occupiedForUnit(this.selectedUnit)
+        this.occupiedForUnit(this.selectedUnit),
+        this.selectedUnit.mobility
       );
       this.movePath = path ?? [];
     } else {
@@ -329,7 +356,12 @@ export class Battle {
     if (!reachable.some(p => p.x === dest.x && p.y === dest.y)) return;
 
     const occupied = this.occupiedForUnit(unit);
-    const path = this.grid.findPath(unit.position, dest, occupied);
+    const path = this.grid.findApproachPath(
+      unit.position,
+      dest,
+      occupied,
+      unit.mobility
+    );
     if (!path || path.length <= 1) return;
     if (unit.actionPoints < 1) return;
 
@@ -354,7 +386,10 @@ export class Battle {
   }
 
   private async tryShootAt(aimPos: Position): Promise<void> {
-    const shooter = this.selectedUnit!;
+    await this.executeShootAtTile(this.selectedUnit!, aimPos);
+  }
+
+  private async executeShootAtTile(shooter: Unit, aimPos: Position): Promise<void> {
     if (shooter.actionPoints < 1 || shooter.hasActed) return;
 
     const ray = traceShotRay(shooter, aimPos, this.grid, this.allUnits);
@@ -515,12 +550,21 @@ export class Battle {
     return this.aliveSoldiers.every(s => s.actionPoints <= 0);
   }
 
+  allAliensDone(): boolean {
+    return this.aliveAliens.every(a => a.actionPoints <= 0);
+  }
+
   async endPlayerTurn(): Promise<void> {
     if (this.phase !== 'player') return;
     if (this.turnMode === 'sequential' && this.isAnimating) return;
 
     while (this.animatingUnits.size > 0) {
       await delay(50);
+    }
+
+    if (this.turnMode === 'simultaneous') {
+      await this.resolveSimultaneousRoundEnd();
+      return;
     }
 
     for (const s of this.aliveSoldiers) {
@@ -536,6 +580,26 @@ export class Battle {
     this.notify();
 
     await this.runEnemyTurn();
+  }
+
+  private async resolveSimultaneousRoundEnd(): Promise<void> {
+    this.log('--- Конец раунда: пришельцы и оставшиеся солдаты ---', 'info');
+    this.notify();
+
+    while (
+      this.aliveSoldiers.some(s => s.actionPoints > 0) ||
+      this.aliveAliens.some(a => a.actionPoints > 0)
+    ) {
+      const acted = await this.runSimultaneousParallelTick();
+      if (!acted) break;
+      if (this.phase !== 'player') return;
+
+      while (this.animatingUnits.size > 0) {
+        await delay(50);
+      }
+    }
+
+    await this.finishSimultaneousRound();
   }
 
   private async checkOverwatchAnimated(team: 'soldier' | 'alien'): Promise<void> {
@@ -588,14 +652,9 @@ export class Battle {
       if (alien.isAlive) resetUnitTurn(alien);
     }
 
-    if (this.turnMode === 'simultaneous') {
-      await Promise.all(actions.map(action => this.executeAIAction(action)));
-      await this.checkOverwatchAnimated('soldier');
-    } else {
-      for (const action of actions) {
-        await this.executeAIAction(action);
-        await delay(200);
-      }
+    for (const action of actions) {
+      await this.executeAIAction(action);
+      await delay(200);
     }
 
     this.checkVictory();
@@ -617,6 +676,8 @@ export class Battle {
       this.log(`${action.unit.name} перемещается.`, 'info');
       this.endUnitAnimation(action.unit.id);
       this.notify();
+    } else if (action.type === 'shoot' && action.aimPos && !action.shotResult) {
+      await this.executeShootAtTile(action.unit, action.aimPos);
     } else if (action.type === 'shoot' && action.target && action.shotResult) {
       this.beginUnitAnimation(action.unit.id);
       const r = action.shotResult;
@@ -658,6 +719,24 @@ export class Battle {
       if (this.animations) this.animations.playOverwatchActivate(action.unit.id);
       this.notify();
     }
+  }
+
+  private async startNextRound(): Promise<void> {
+    this.turnNumber++;
+    for (const s of this.soldiers) {
+      if (s.isAlive) resetUnitTurn(s);
+    }
+    for (const a of this.aliens) {
+      if (a.isAlive) resetUnitTurn(a);
+    }
+    this.phase = 'player';
+    this.selectedUnit = null;
+    this.actionMode = null;
+    this.movePath = [];
+    const modeLabel = this.turnMode === 'simultaneous' ? 'параллельный' : 'по очереди';
+    this.log(`--- Раунд ${this.turnNumber} (${modeLabel}) ---`, 'info');
+    this.selectFirstAvailableSoldier();
+    this.notify();
   }
 
   private startPlayerTurn(): void {

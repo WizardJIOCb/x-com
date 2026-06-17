@@ -168,7 +168,14 @@ export class HUD {
   private renderMissionInfo(battle: Battle): void {
     const alive = battle.aliveSoldiers.length;
     const aliens = battle.aliveAliens.length;
-    const phase = battle.phase === 'player' ? 'Ход XCOM' : battle.phase === 'enemy' ? 'Ход пришельцев' : '';
+    const phase =
+      battle.phase === 'player'
+        ? battle.turnMode === 'simultaneous'
+          ? 'Раунд'
+          : 'Ход XCOM'
+        : battle.phase === 'enemy'
+          ? 'Ход пришельцев'
+          : '';
     const autoTag = battle.autoBattle ? ' · 🤖' : '';
     const modeTag = battle.turnMode === 'simultaneous' ? ' · ⚡Параллель' : '';
 
@@ -282,6 +289,12 @@ export class HUD {
       (battle.turnMode === 'sequential' ? !battle.isAnimating : true);
 
     this.endTurnBtn.disabled = !isPlayerTurn || battle.autoBattle || battle.hasBusyAnimations;
+    this.endTurnBtn.textContent =
+      battle.turnMode === 'simultaneous' ? '⏭ Конец раунда' : '⏭ Конец хода';
+    this.endTurnBtn.title =
+      battle.turnMode === 'simultaneous'
+        ? 'Завершить раунд — пришельцы и оставшиеся солдаты действуют параллельно'
+        : 'Завершить ход XCOM';
     this.autoBattleBtn.disabled = battleOver;
     this.autoBattleBtn.classList.toggle('active', battle.autoBattle);
     this.autoBattleBtn.textContent = battle.autoBattle ? '⏹ Стоп' : '⚡ Автобой';
@@ -291,8 +304,8 @@ export class HUD {
     this.turnModeBtn.classList.toggle('active', isParallel);
     this.turnModeBtn.textContent = isParallel ? '⚡ Параллель' : '🔄 По очереди';
     this.turnModeBtn.title = isParallel
-      ? 'Параллельный режим — все действуют одновременно'
-      : 'Классический режим — по одному солдату';
+      ? 'Параллельный режим — обе команды действуют одновременно за раунд'
+      : 'Классический режим — солдаты по очереди, затем пришельцы';
 
     if (!unit || !isPlayerTurn || battle.autoBattle) {
       const msg = battle.autoBattle

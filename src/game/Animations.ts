@@ -13,6 +13,7 @@ export interface UnitVisual {
   aimAngle: number;
   spawnPulse: number;
   ragdollActive: boolean;
+  rigActive: boolean;
 }
 
 export interface Particle3D {
@@ -74,6 +75,7 @@ export class AnimationManager {
           aimAngle: 0,
           spawnPulse: 1,
           ragdollActive: false,
+          rigActive: false,
         });
       } else if (unit.isAlive) {
         const v = this.unitVisuals.get(unit.id)!;
@@ -162,10 +164,14 @@ export class AnimationManager {
 
   async animateMove(unit: Unit, path: Position[]): Promise<void> {
     const visual = this.unitVisuals.get(unit.id)!;
-    const stepDuration = 200;
+    const stepDuration = 320;
     const walking = path.length > 1;
 
-    if (walking) this.rigAnimator.setWalking(unit.id, true);
+    if (walking) {
+      visual.rigActive = true;
+      const walkTimeScale = this.rigAnimator.getWalkTimeScale(unit.id, stepDuration);
+      this.rigAnimator.setWalking(unit.id, true, walkTimeScale);
+    }
 
     try {
       for (let i = 1; i < path.length; i++) {
@@ -193,7 +199,10 @@ export class AnimationManager {
       visual.x = end.x;
       visual.y = end.y;
     } finally {
-      if (walking) this.rigAnimator.setWalking(unit.id, false);
+      if (walking) {
+        this.rigAnimator.setWalking(unit.id, false);
+        visual.rigActive = false;
+      }
     }
   }
 
@@ -374,6 +383,7 @@ export class AnimationManager {
     if (!v) return Promise.resolve();
 
     this.rigAnimator.playDeath(unitId);
+    v.rigActive = true;
 
     const mesh = this.meshProvider?.(unitId);
     if (mesh) {
