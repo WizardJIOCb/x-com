@@ -382,11 +382,16 @@ export class AnimationManager {
     const v = this.unitVisuals.get(unitId);
     if (!v) return Promise.resolve();
 
-    this.rigAnimator.playDeath(unitId);
-    v.rigActive = true;
-
     const mesh = this.meshProvider?.(unitId);
     if (mesh) {
+      const usesIdleBody = this.prepareDeathMesh(mesh);
+      if (usesIdleBody) {
+        v.rigActive = false;
+      } else {
+        this.rigAnimator.playDeath(unitId);
+        v.rigActive = true;
+      }
+
       return new Promise(resolve => {
         setTimeout(() => {
           this.rigAnimator.stopForRagdoll(unitId);
@@ -394,17 +399,24 @@ export class AnimationManager {
           v.deathProgress = 0;
 
           const worldPos = mesh.getWorldPosition(new THREE.Vector3());
+          const worldQuat = mesh.getWorldQuaternion(new THREE.Quaternion());
+          const worldScale = mesh.getWorldScale(new THREE.Vector3());
           mesh.parent?.remove(mesh);
           this.ragdollManager.group.add(mesh);
           mesh.position.copy(worldPos);
+          mesh.quaternion.copy(worldQuat);
+          mesh.scale.copy(worldScale);
           mesh.updateMatrixWorld(true);
 
           this.onRagdollDetach?.(unitId);
           this.ragdollManager.spawn(mesh);
           resolve();
-        }, 180);
+        }, usesIdleBody ? 60 : 220);
       });
     }
+
+    this.rigAnimator.playDeath(unitId);
+    v.rigActive = true;
 
     const duration = 600;
     const start = performance.now();
@@ -426,6 +438,16 @@ export class AnimationManager {
     v.spawnPulse = 0;
     const center = gridToWorld(v.x, v.y, 0.5);
     this.spawnBurst(center, 0xffa502, 16, 0.5);
+  }
+
+  private prepareDeathMesh(mesh: THREE.Group): boolean {
+    const idleBody = mesh.getObjectByName('unitIdleBody');
+    const rigBody = mesh.getObjectByName('unitBody');
+    if (!idleBody) return false;
+
+    idleBody.visible = true;
+    if (rigBody) rigBody.visible = false;
+    return true;
   }
 
   spawnExplosion(center: THREE.Vector3): void {

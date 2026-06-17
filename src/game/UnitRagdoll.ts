@@ -2,17 +2,10 @@ import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { MODEL_FLOOR_Y } from './Coords3D';
 
-interface BoneLink {
-  bone: THREE.Bone;
-  body: CANNON.Body;
-}
-
 interface ActiveRagdoll {
   root: THREE.Object3D;
-  skinned: THREE.SkinnedMesh | null;
-  links: BoneLink[];
-  constraints: CANNON.Constraint[];
-  tumbleBody: CANNON.Body | null;
+  body: CANNON.Body;
+  rootOffset: THREE.Vector3;
   age: number;
   lifetime: number;
 }
@@ -34,13 +27,7 @@ export class UnitRagdollManager {
 
   spawn(mesh: THREE.Group, impulse?: THREE.Vector3): void {
     this.hideUi(mesh);
-
-    const skinned = this.findSkinned(mesh);
-    if (skinned?.skeleton) {
-      this.spawnSkeletal(mesh, skinned, impulse);
-    } else {
-      this.spawnTumble(mesh, impulse);
-    }
+    this.spawnTumble(mesh, impulse);
   }
 
   update(dt: number): void {
@@ -53,11 +40,7 @@ export class UnitRagdollManager {
       const rag = this.ragdolls[i];
       rag.age += dt;
 
-      if (rag.skinned) {
-        this.syncSkeleton(rag);
-      } else if (rag.tumbleBody) {
-        this.syncTumble(rag);
-      }
+      this.syncTumble(rag);
 
       const fadeStart = rag.lifetime - 1.2;
       if (rag.age > fadeStart) {
@@ -82,86 +65,23 @@ export class UnitRagdollManager {
     }
   }
 
-  private spawnSkeletal(
-    mesh: THREE.Group,
-    skinned: THREE.SkinnedMesh,
-    impulse?: THREE.Vector3
-  ): void {
-    mesh.updateMatrixWorld(true);
-    const bones = skinned.skeleton.bones;
-    const boneToBody = new Map<THREE.Bone, CANNON.Body>();
-    const links: BoneLink[] = [];
-    const constraints: CANNON.Constraint[] = [];
-
-    const worldPos = new THREE.Vector3();
-    const worldQuat = new THREE.Quaternion();
-    const childPos = new THREE.Vector3();
-    const parentPos = new THREE.Vector3();
-
-    for (const bone of bones) {
-      bone.getWorldPosition(worldPos);
-      bone.getWorldQuaternion(worldQuat);
-
-      const radius = this.boneRadius(bone, bones);
-      const mass = bone.parent instanceof THREE.Bone ? radius * 6 : radius * 12;
-      const body = new CANNON.Body({
-        mass,
-        shape: new CANNON.Sphere(radius),
-        linearDamping: 0.25,
-        angularDamping: 0.45,
-      });
-      body.position.set(worldPos.x, worldPos.y, worldPos.z);
-      body.quaternion.set(worldQuat.x, worldQuat.y, worldQuat.z, worldQuat.w);
-
-      this.world.addBody(body);
-      boneToBody.set(bone, body);
-      links.push({ bone, body });
-    }
-
-    for (const bone of bones) {
-      if (!(bone.parent instanceof THREE.Bone)) continue;
-      const parentBody = boneToBody.get(bone.parent);
-      const childBody = boneToBody.get(bone);
-      if (!parentBody || !childBody) continue;
-
-      bone.getWorldPosition(childPos);
-      bone.parent.getWorldPosition(parentPos);
-      const dist = Math.max(0.04, childPos.distanceTo(parentPos));
-
-      const constraint = new CANNON.DistanceConstraint(parentBody, childBody, dist);
-      this.world.addConstraint(constraint);
-      constraints.push(constraint);
-    }
-
-    const impulseDir = impulse ?? this.randomImpulse();
-    const torso = bones[Math.floor(bones.length * 0.45)] ?? bones[0];
-    const torsoBody = boneToBody.get(torso);
-    if (torsoBody) {
-      this.applyImpulse(torsoBody, impulseDir, 5);
-    }
-
-    this.ragdolls.push({
-      root: mesh,
-      skinned,
-      links,
-      constraints,
-      tumbleBody: null,
-      age: 0,
-      lifetime: 5.5,
-    });
-  }
-
   private spawnTumble(mesh: THREE.Group, impulse?: THREE.Vector3): void {
     mesh.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(mesh);
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
+    const rootWorldPos = new THREE.Vector3();
+    const rootWorldQuat = new THREE.Quaternion();
     box.getSize(size);
     box.getCenter(center);
+    mesh.getWorldPosition(rootWorldPos);
+    mesh.getWorldQuaternion(rootWorldQuat);
 
     const hx = Math.max(0.08, size.x * 0.5);
     const hy = Math.max(0.12, size.y * 0.5);
     const hz = Math.max(0.08, size.z * 0.5);
+    const invRootQuat = rootWorldQuat.clone().invert();
+    const rootOffset = rootWorldPos.clone().sub(center).applyQuaternion(invRootQuat);
 
     const body = new CANNON.Body({
       mass: 6,
@@ -170,54 +90,30 @@ export class UnitRagdollManager {
       angularDamping: 0.55,
     });
     body.position.set(center.x, center.y, center.z);
+    body.quaternion.set(rootWorldQuat.x, rootWorldQuat.y, rootWorldQuat.z, rootWorldQuat.w);
     this.world.addBody(body);
     this.applyImpulse(body, impulse ?? this.randomImpulse(), 6);
 
     this.ragdolls.push({
       root: mesh,
-      skinned: null,
-      links: [],
-      constraints: [],
-      tumbleBody: body,
+      body,
+      rootOffset,
       age: 0,
       lifetime: 4.5,
     });
   }
 
-  private syncSkeleton(rag: ActiveRagdoll): void {
-    if (!rag.skinned) return;
-
-    const pos = new THREE.Vector3();
-    const quat = new THREE.Quaternion();
-    const parentQuat = new THREE.Quaternion();
-    const parentInv = new THREE.Matrix4();
-
-    for (const { bone, body } of rag.links) {
-      pos.set(body.position.x, body.position.y, body.position.z);
-      quat.set(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
-
-      if (bone.parent) {
-        bone.parent.updateMatrixWorld(true);
-        bone.parent.getWorldQuaternion(parentQuat);
-        parentInv.copy(bone.parent.matrixWorld).invert();
-        pos.applyMatrix4(parentInv);
-        quat.premultiply(parentQuat.invert());
-      }
-
-      bone.position.copy(pos);
-      bone.quaternion.copy(quat);
-      bone.updateMatrixWorld(true);
-    }
-
-    rag.skinned.skeleton.update();
-  }
-
   private syncTumble(rag: ActiveRagdoll): void {
-    const body = rag.tumbleBody;
-    if (!body) return;
+    const body = rag.body;
+    const quat = new THREE.Quaternion(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
+    const offset = rag.rootOffset.clone().applyQuaternion(quat);
 
-    rag.root.position.set(body.position.x, body.position.y - MODEL_FLOOR_Y * 0.5, body.position.z);
-    rag.root.quaternion.set(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
+    rag.root.position.set(
+      body.position.x + offset.x,
+      body.position.y + offset.y,
+      body.position.z + offset.z
+    );
+    rag.root.quaternion.copy(quat);
     rag.root.updateMatrixWorld(true);
   }
 
@@ -241,29 +137,6 @@ export class UnitRagdollManager {
     ).normalize();
   }
 
-  private boneRadius(bone: THREE.Bone, bones: THREE.Bone[]): number {
-    const idx = bones.indexOf(bone);
-    let minDist = 0.14;
-    for (let i = 0; i < bones.length; i++) {
-      if (bones[i].parent !== bone) continue;
-      const d = bone.position.distanceTo(bones[i].position);
-      if (d > 0.01) minDist = Math.min(minDist, d * 0.45);
-    }
-    const name = bone.name.toLowerCase();
-    if (name.includes('head')) return Math.max(0.1, minDist);
-    if (name.includes('hand') || name.includes('foot')) return Math.max(0.05, minDist * 0.7);
-    if (idx < 3) return Math.max(0.12, minDist);
-    return Math.max(0.06, minDist);
-  }
-
-  private findSkinned(root: THREE.Object3D): THREE.SkinnedMesh | null {
-    let found: THREE.SkinnedMesh | null = null;
-    root.traverse(child => {
-      if (child instanceof THREE.SkinnedMesh && child.skeleton) found = child;
-    });
-    return found;
-  }
-
   private hideUi(mesh: THREE.Group): void {
     for (const name of ['hpBar', 'selectionRing', 'overwatchRing']) {
       const obj = mesh.getObjectByName(name);
@@ -284,9 +157,7 @@ export class UnitRagdollManager {
   }
 
   private disposeRagdoll(rag: ActiveRagdoll): void {
-    for (const c of rag.constraints) this.world.removeConstraint(c);
-    for (const { body } of rag.links) this.world.removeBody(body);
-    if (rag.tumbleBody) this.world.removeBody(rag.tumbleBody);
+    this.world.removeBody(rag.body);
 
     rag.root.parent?.remove(rag.root);
     rag.root.traverse(obj => {
