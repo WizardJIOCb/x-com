@@ -4,7 +4,13 @@ import { MODEL_FLOOR_Y } from './Coords3D';
 
 interface BoneLink {
   bone: THREE.Bone;
+  child: THREE.Bone | null;
   body: CANNON.Body;
+  bindLocalPosition: THREE.Vector3;
+  bindLocalQuaternion: THREE.Quaternion;
+  bindDirection: THREE.Vector3;
+  length: number;
+  radius: number;
 }
 
 export interface RagdollImpulse {
@@ -21,6 +27,9 @@ interface ActiveRagdoll {
   constraints: CANNON.Constraint[];
   body: CANNON.Body | null;
   rootOffset: THREE.Vector3;
+  rootBody: CANNON.Body | null;
+  rootBindWorldPosition: THREE.Vector3;
+  rootBindPosition: THREE.Vector3;
   age: number;
   lifetime: number;
 }
@@ -28,6 +37,7 @@ interface ActiveRagdoll {
 const RAGDOLL_GROUP = 2;
 const GROUND_GROUP = 1;
 const RAGDOLL_COLLISION_MASK = GROUND_GROUP | RAGDOLL_GROUP;
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
 
 export class UnitRagdollManager {
   readonly group = new THREE.Group();
@@ -105,52 +115,85 @@ export class UnitRagdollManager {
 
     const links: BoneLink[] = [];
     const constraints: CANNON.Constraint[] = [];
-    const boneToBody = new Map<THREE.Bone, CANNON.Body>();
-    const worldPos = new THREE.Vector3();
-    const worldQuat = new THREE.Quaternion();
+    const boneToLink = new Map<THREE.Bone, BoneLink>();
+    const boneWorldPos = new THREE.Vector3();
+    const childWorldPos = new THREE.Vector3();
+    const midpoint = new THREE.Vector3();
+    const segmentDir = new THREE.Vector3();
+    const bodyQuat = new THREE.Quaternion();
 
     for (const bone of skinned.skeleton.bones) {
-      bone.getWorldPosition(worldPos);
-      bone.getWorldQuaternion(worldQuat);
+      const child = this.primaryBoneChild(bone);
+      if (!child || !this.isUsefulSegment(bone, child)) continue;
+
+      bone.getWorldPosition(boneWorldPos);
+      child.getWorldPosition(childWorldPos);
+      segmentDir.subVectors(childWorldPos, boneWorldPos);
+      const length = segmentDir.length();
+      if (length < 0.035) continue;
+
+      midpoint.copy(boneWorldPos).add(childWorldPos).multiplyScalar(0.5);
+      segmentDir.normalize();
+      bodyQuat.setFromUnitVectors(Y_AXIS, segmentDir);
+
+      const radius = this.segmentRadius(bone, length);
 
       const body = new CANNON.Body({
-        mass: bone.parent instanceof THREE.Bone ? this.boneMass(bone) : 1.2,
-        shape: new CANNON.Sphere(this.boneRadius(bone)),
-        linearDamping: 0.62,
-        angularDamping: 0.78,
+        mass: this.boneMass(bone),
+        shape: new CANNON.Box(new CANNON.Vec3(radius, Math.max(0.025, length * 0.48), radius)),
+        linearDamping: 0.48,
+        angularDamping: 0.64,
         collisionFilterGroup: RAGDOLL_GROUP,
         collisionFilterMask: RAGDOLL_COLLISION_MASK,
       });
-      body.position.set(worldPos.x, worldPos.y, worldPos.z);
-      body.quaternion.set(worldQuat.x, worldQuat.y, worldQuat.z, worldQuat.w);
+      body.position.set(midpoint.x, midpoint.y, midpoint.z);
+      body.quaternion.set(bodyQuat.x, bodyQuat.y, bodyQuat.z, bodyQuat.w);
 
       this.world.addBody(body);
-      boneToBody.set(bone, body);
-      links.push({ bone, body });
+
+      const link: BoneLink = {
+        bone,
+        child,
+        body,
+        bindLocalPosition: bone.position.clone(),
+        bindLocalQuaternion: bone.quaternion.clone(),
+        bindDirection: child.position.lengthSq() > 0.0001
+          ? child.position.clone().normalize()
+          : new THREE.Vector3(0, 1, 0),
+        length,
+        radius,
+      };
+      boneToLink.set(bone, link);
+      links.push(link);
     }
 
-    for (const bone of skinned.skeleton.bones) {
-      if (!(bone.parent instanceof THREE.Bone)) continue;
-      const body = boneToBody.get(bone);
-      const parentBody = boneToBody.get(bone.parent);
-      if (!body || !parentBody) continue;
+    for (const link of links) {
+      if (!(link.bone.parent instanceof THREE.Bone)) continue;
+      const parentLink = boneToLink.get(link.bone.parent);
+      if (!parentLink) continue;
 
-      bone.getWorldPosition(worldPos);
-      const joint = new CANNON.Vec3(worldPos.x, worldPos.y, worldPos.z);
-      const pivotA = parentBody.pointToLocalFrame(joint);
-      const pivotB = body.pointToLocalFrame(joint);
+      link.bone.getWorldPosition(boneWorldPos);
+      const joint = new CANNON.Vec3(boneWorldPos.x, boneWorldPos.y, boneWorldPos.z);
+      const pivotA = parentLink.body.pointToLocalFrame(joint);
+      const pivotB = link.body.pointToLocalFrame(joint);
       const constraint = new CANNON.PointToPointConstraint(
-        parentBody,
+        parentLink.body,
         pivotA,
-        body,
+        link.body,
         pivotB,
-        1e5
+        2.5e5
       );
       constraint.collideConnected = false;
       this.world.addConstraint(constraint);
       constraints.push(constraint);
     }
 
+    if (links.length === 0) {
+      this.spawnTumble(mesh, impulse);
+      return;
+    }
+
+    const rootLink = this.pickRootLink(links);
     this.applySkeletonImpulse(links, impulse);
 
     this.ragdolls.push({
@@ -160,6 +203,11 @@ export class UnitRagdollManager {
       constraints,
       body: null,
       rootOffset: new THREE.Vector3(),
+      rootBody: rootLink?.body ?? null,
+      rootBindWorldPosition: rootLink
+        ? new THREE.Vector3(rootLink.body.position.x, rootLink.body.position.y, rootLink.body.position.z)
+        : new THREE.Vector3(),
+      rootBindPosition: mesh.position.clone(),
       age: 0,
       lifetime: 5.5,
     });
@@ -203,6 +251,9 @@ export class UnitRagdollManager {
       constraints: [],
       body,
       rootOffset,
+      rootBody: null,
+      rootBindWorldPosition: new THREE.Vector3(),
+      rootBindPosition: new THREE.Vector3(),
       age: 0,
       lifetime: 4.5,
     });
@@ -211,25 +262,41 @@ export class UnitRagdollManager {
   private syncSkeleton(rag: ActiveRagdoll): void {
     if (!rag.skinned) return;
 
-    const pos = new THREE.Vector3();
-    const quat = new THREE.Quaternion();
-    const parentQuat = new THREE.Quaternion();
-    const parentInv = new THREE.Matrix4();
+    if (rag.rootBody) {
+      const delta = new THREE.Vector3(
+        rag.rootBody.position.x - rag.rootBindWorldPosition.x,
+        rag.rootBody.position.y - rag.rootBindWorldPosition.y,
+        rag.rootBody.position.z - rag.rootBindWorldPosition.z
+      );
+      rag.root.position.copy(rag.rootBindPosition).add(delta);
+      rag.root.updateMatrixWorld(true);
+    }
 
-    for (const { bone, body } of rag.links) {
-      pos.set(body.position.x, body.position.y, body.position.z);
-      quat.set(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
+    const bodyQuat = new THREE.Quaternion();
+    const worldDir = new THREE.Vector3();
+    const localDir = new THREE.Vector3();
+    const parentWorldQuat = new THREE.Quaternion();
+    const parentInvQuat = new THREE.Quaternion();
+    const deltaQuat = new THREE.Quaternion();
+
+    for (const link of rag.links) {
+      const { bone, body } = link;
+
+      bone.position.copy(link.bindLocalPosition);
+
+      bodyQuat.set(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
+      worldDir.copy(Y_AXIS).applyQuaternion(bodyQuat).normalize();
+      localDir.copy(worldDir);
 
       if (bone.parent) {
         bone.parent.updateMatrixWorld(true);
-        bone.parent.getWorldQuaternion(parentQuat);
-        parentInv.copy(bone.parent.matrixWorld).invert();
-        pos.applyMatrix4(parentInv);
-        quat.premultiply(parentQuat.invert());
+        bone.parent.getWorldQuaternion(parentWorldQuat);
+        parentInvQuat.copy(parentWorldQuat).invert();
+        localDir.applyQuaternion(parentInvQuat).normalize();
       }
 
-      bone.position.copy(pos);
-      bone.quaternion.copy(quat);
+      deltaQuat.setFromUnitVectors(link.bindDirection, localDir);
+      bone.quaternion.copy(deltaQuat.multiply(link.bindLocalQuaternion));
       bone.updateMatrixWorld(true);
     }
 
@@ -325,17 +392,49 @@ export class UnitRagdollManager {
     ).normalize();
   }
 
-  private boneRadius(bone: THREE.Bone): number {
+  private primaryBoneChild(bone: THREE.Bone): THREE.Bone | null {
+    let best: THREE.Bone | null = null;
+    let bestLen = 0;
+
+    for (const child of bone.children) {
+      if (!(child instanceof THREE.Bone)) continue;
+      const len = child.position.lengthSq();
+      if (len > bestLen) {
+        best = child;
+        bestLen = len;
+      }
+    }
+
+    return best;
+  }
+
+  private isUsefulSegment(bone: THREE.Bone, child: THREE.Bone): boolean {
+    const name = `${bone.name} ${child.name}`.toLowerCase();
+    if (/finger|thumb|index|middle|ring|pinky|toe|hair|weapon|prop|end/i.test(name)) return false;
+    return child.position.length() > 0.045;
+  }
+
+  private pickRootLink(links: BoneLink[]): BoneLink | null {
+    return (
+      links.find(link => /pelvis|hips|spine|chest/i.test(link.bone.name)) ??
+      links[Math.floor(links.length * 0.3)] ??
+      links[0] ??
+      null
+    );
+  }
+
+  private segmentRadius(bone: THREE.Bone, length: number): number {
     const name = bone.name.toLowerCase();
-    if (name.includes('head')) return 0.12;
-    if (name.includes('pelvis') || name.includes('hips')) return 0.16;
-    if (name.includes('spine') || name.includes('chest')) return 0.15;
-    if (name.includes('thigh') || name.includes('upperleg')) return 0.095;
-    if (name.includes('upperarm')) return 0.085;
-    if (name.includes('calf') || name.includes('lowerleg')) return 0.08;
-    if (name.includes('lowerarm')) return 0.07;
-    if (name.includes('hand') || name.includes('foot')) return 0.06;
-    return 0.08;
+    const byLength = THREE.MathUtils.clamp(length * 0.18, 0.035, 0.13);
+    if (name.includes('head') || name.includes('neck')) return Math.max(byLength, 0.105);
+    if (name.includes('pelvis') || name.includes('hips')) return Math.max(byLength, 0.15);
+    if (name.includes('spine') || name.includes('chest')) return Math.max(byLength, 0.14);
+    if (name.includes('thigh') || name.includes('upperleg')) return Math.max(byLength, 0.085);
+    if (name.includes('calf') || name.includes('lowerleg')) return Math.max(byLength, 0.07);
+    if (name.includes('upperarm')) return Math.max(byLength, 0.075);
+    if (name.includes('lowerarm')) return Math.max(byLength, 0.06);
+    if (name.includes('hand') || name.includes('foot')) return Math.max(byLength, 0.055);
+    return byLength;
   }
 
   private boneMass(bone: THREE.Bone): number {

@@ -543,6 +543,13 @@ body {
   line-height: 1.5;
 }
 
+.overlay-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .section-title {
   font-size: 11px;
   text-transform: uppercase;

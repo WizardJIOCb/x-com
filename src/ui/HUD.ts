@@ -19,6 +19,7 @@ export class HUD {
   private overlayTitle: HTMLElement;
   private overlayText: HTMLElement;
   private overlayBtn: HTMLButtonElement;
+  private overlayContinueBtn: HTMLButtonElement;
   private mobileDock: HTMLElement | null;
 
   private onEndTurn: (() => void) | null = null;
@@ -30,6 +31,7 @@ export class HUD {
   private onToggleTurnMode: (() => void) | null = null;
 
   private lastHudState = '';
+  private dismissedOverlayPhase: 'victory' | 'defeat' | null = null;
   private _battle: Battle | null = null;
   private mobileTab: MobileTab = 'map';
   private isMobile = false;
@@ -50,6 +52,7 @@ export class HUD {
     this.overlayTitle = document.getElementById('overlay-title')!;
     this.overlayText = document.getElementById('overlay-text')!;
     this.overlayBtn = document.getElementById('overlay-btn') as HTMLButtonElement;
+    this.overlayContinueBtn = document.getElementById('overlay-continue-btn') as HTMLButtonElement;
     this.mobileDock = document.getElementById('mobile-dock');
 
     this.endTurnBtn.addEventListener('click', () => this.onEndTurn?.());
@@ -57,7 +60,13 @@ export class HUD {
     this.autoBattleBtn.addEventListener('click', () => this.onAutoBattle?.());
     this.overlayBtn.addEventListener('click', () => {
       this.overlay.classList.add('hidden');
+      this.dismissedOverlayPhase = null;
       this.onRestart?.();
+    });
+    this.overlayContinueBtn.addEventListener('click', () => {
+      const phase = this._battle?.phase;
+      if (phase === 'victory' || phase === 'defeat') this.dismissedOverlayPhase = phase;
+      this.overlay.classList.add('hidden');
     });
 
     this.actionBar.addEventListener('click', (e) => {
@@ -353,17 +362,31 @@ export class HUD {
   }
 
   private renderOverlay(battle: Battle): void {
+    if (battle.phase !== 'victory' && battle.phase !== 'defeat') {
+      this.dismissedOverlayPhase = null;
+      this.overlay.classList.add('hidden');
+      return;
+    }
+
+    if (this.dismissedOverlayPhase === battle.phase) {
+      this.overlay.classList.add('hidden');
+      return;
+    }
+
     if (battle.phase === 'victory') {
       this.overlay.classList.remove('hidden');
       this.overlayTitle.textContent = 'МИССИЯ ВЫПОЛНЕНА';
       this.overlayText.textContent =
         `Отряд XCOM успешно зачистил район. Уничтожено пришельцев: ${battle.aliens.length}. Раундов: ${battle.turnNumber}.`;
       this.overlayBtn.textContent = 'Новая миссия';
+      this.overlayContinueBtn.classList.add('hidden');
     } else if (battle.phase === 'defeat') {
       this.overlay.classList.remove('hidden');
       this.overlayTitle.textContent = 'МИССИЯ ПРОВАЛЕНА';
       this.overlayText.textContent = 'Все солдаты погибли. Земля нуждается в новом отряде.';
       this.overlayBtn.textContent = 'Попробовать снова';
+      this.overlayContinueBtn.textContent = 'Продолжить';
+      this.overlayContinueBtn.classList.remove('hidden');
     }
   }
 }
