@@ -7,9 +7,11 @@ import {
   traceShotRay,
 } from './Combat';
 import { Grid } from './Grid';
+import { gridToWorld } from './Coords3D';
 import { createAliens, createSoldiers, resetIdCounter, resetUnitTurn } from './Units';
 import { planAlienTurn, planNextSoldierAction, type AIAction } from './AI';
 import type { AnimationManager } from './Animations';
+import type { RagdollImpulse } from './UnitRagdoll';
 
 export class Battle {
   grid: Grid;
@@ -408,7 +410,7 @@ export class Battle {
     shooter.hasActed = true;
 
     const changedTiles: Position[] = [];
-    const killedUnits: Unit[] = [];
+    const killedUnits: Array<{ unit: Unit; impulse: RagdollImpulse }> = [];
     let anyEffect = false;
 
     for (const hit of ray.hits) {
@@ -423,7 +425,10 @@ export class Battle {
           );
           if (killed) {
             this.log(`${hit.unit.name} уничтожен!`, 'kill');
-            killedUnits.push(hit.unit);
+            killedUnits.push({
+              unit: hit.unit,
+              impulse: this.makeShotDeathImpulse(shooter, hit.unit, hit.position, hit.shotResult.crit),
+            });
           }
         } else {
           this.log(
@@ -451,7 +456,7 @@ export class Battle {
     if (changedTiles.length > 0) this.onMapChange?.(changedTiles);
 
     if (this.animations) {
-      await Promise.all(killedUnits.map(k => this.animations!.playDeath(k.id)));
+      await Promise.all(killedUnits.map(k => this.animations!.playDeath(k.unit.id, k.impulse)));
     }
 
     this.endUnitAnimation(shooter.id);
@@ -480,7 +485,7 @@ export class Battle {
     const blastTiles = getTilesInBlast(pos, 2, this.grid);
     this.log(`${unit.name} бросает гранату!`, 'info');
 
-    const killedUnits: Unit[] = [];
+    const killedUnits: Array<{ unit: Unit; impulse: RagdollImpulse }> = [];
     const changedTiles: Position[] = [];
 
     for (const tile of blastTiles) {
@@ -498,7 +503,10 @@ export class Battle {
         this.log(`${target.name} получает 5 урона от гранаты!`, 'hit');
         if (killed) {
           this.log(`${target.name} уничтожен!`, 'kill');
-          killedUnits.push(target);
+          killedUnits.push({
+            unit: target,
+            impulse: this.makeExplosionDeathImpulse(pos, target),
+          });
         }
       }
     }
@@ -506,7 +514,7 @@ export class Battle {
     if (changedTiles.length > 0) this.onMapChange?.(changedTiles);
 
     if (this.animations) {
-      await Promise.all(killedUnits.map(k => this.animations!.playDeath(k.id)));
+      await Promise.all(killedUnits.map(k => this.animations!.playDeath(k.unit.id, k.impulse)));
     }
 
     this.endUnitAnimation(unit.id);
@@ -631,7 +639,12 @@ export class Battle {
           );
           if (killed) {
             this.log(`${target.name} уничтожен!`, 'kill');
-            if (this.animations) await this.animations.playDeath(target.id);
+            if (this.animations) {
+              await this.animations.playDeath(
+                target.id,
+                this.makeShotDeathImpulse(watcher, target, target.position, result.crit)
+              );
+            }
           }
         } else {
           this.log(`${watcher.name} (дозор) промахивается.`, 'miss');
@@ -699,7 +712,12 @@ export class Battle {
         );
         if (killed) {
           this.log(`${action.target.name} уничтожен!`, 'kill');
-          if (this.animations) await this.animations.playDeath(action.target.id);
+          if (this.animations) {
+            await this.animations.playDeath(
+              action.target.id,
+              this.makeShotDeathImpulse(action.unit, action.target, action.target.position, r.crit)
+            );
+          }
         }
       } else {
         this.log(
@@ -749,6 +767,51 @@ export class Battle {
     this.log(`--- Ход XCOM (раунд ${this.turnNumber}, ${modeLabel}) ---`, 'info');
     this.selectFirstAvailableSoldier();
     this.notify();
+  }
+
+  private makeShotDeathImpulse(
+    shooter: Unit,
+    target: Unit,
+    hitPos: Position,
+    crit = false
+  ): RagdollImpulse {
+    const from = gridToWorld(shooter.position.x, shooter.position.y, 0.75);
+    const point = gridToWorld(hitPos.x, hitPos.y, 0.88);
+    const direction = gridToWorld(target.position.x, target.position.y, 0.75).sub(from);
+
+    if (direction.lengthSq() < 0.0001) {
+      direction.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+    }
+
+    direction.y = 0.08;
+    direction.normalize();
+
+    return {
+      direction,
+      point,
+      strength: crit ? 10.5 : 7.6,
+      upward: crit ? 1.45 : 1.05,
+    };
+  }
+
+  private makeExplosionDeathImpulse(center: Position, target: Unit): RagdollImpulse {
+    const blast = gridToWorld(center.x, center.y, 0.3);
+    const point = gridToWorld(target.position.x, target.position.y, 0.72);
+    const direction = point.clone().sub(blast);
+
+    if (direction.lengthSq() < 0.0001) {
+      direction.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+    }
+
+    direction.y = 0.25;
+    direction.normalize();
+
+    return {
+      direction,
+      point,
+      strength: 9.2,
+      upward: 2.2,
+    };
   }
 
   private checkVictory(): void {

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Position, ShotRayHit, Unit } from '../types';
 import { gridToWorld, movementYaw } from './Coords3D';
-import { UnitRagdollManager } from './UnitRagdoll';
+import { UnitRagdollManager, type RagdollImpulse } from './UnitRagdoll';
 import { UnitRigAnimator } from './UnitRigAnimator';
 
 export interface UnitVisual {
@@ -378,7 +378,7 @@ export class AnimationManager {
     });
   }
 
-  playDeath(unitId: string): Promise<void> {
+  playDeath(unitId: string, impulse?: RagdollImpulse): Promise<void> {
     const v = this.unitVisuals.get(unitId);
     if (!v) return Promise.resolve();
 
@@ -409,7 +409,7 @@ export class AnimationManager {
           mesh.updateMatrixWorld(true);
 
           this.onRagdollDetach?.(unitId);
-          this.ragdollManager.spawn(mesh);
+          this.ragdollManager.spawn(mesh, impulse);
           resolve();
         }, deathBody === 'idle' ? 60 : 260);
       });

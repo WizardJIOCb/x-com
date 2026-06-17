@@ -7,6 +7,13 @@ interface BoneLink {
   body: CANNON.Body;
 }
 
+export interface RagdollImpulse {
+  direction: THREE.Vector3;
+  point?: THREE.Vector3;
+  strength?: number;
+  upward?: number;
+}
+
 interface ActiveRagdoll {
   root: THREE.Object3D;
   skinned: THREE.SkinnedMesh | null;
@@ -20,6 +27,7 @@ interface ActiveRagdoll {
 
 const RAGDOLL_GROUP = 2;
 const GROUND_GROUP = 1;
+const RAGDOLL_COLLISION_MASK = GROUND_GROUP | RAGDOLL_GROUP;
 
 export class UnitRagdollManager {
   readonly group = new THREE.Group();
@@ -41,7 +49,7 @@ export class UnitRagdollManager {
     this.world.addBody(ground);
   }
 
-  spawn(mesh: THREE.Group, impulse?: THREE.Vector3): void {
+  spawn(mesh: THREE.Group, impulse?: RagdollImpulse): void {
     this.hideUi(mesh);
     this.clearFlash(mesh);
 
@@ -90,7 +98,7 @@ export class UnitRagdollManager {
   private spawnSkeletal(
     mesh: THREE.Group,
     skinned: THREE.SkinnedMesh,
-    impulse?: THREE.Vector3
+    impulse?: RagdollImpulse
   ): void {
     mesh.updateMatrixWorld(true);
     skinned.skeleton.update();
@@ -111,7 +119,7 @@ export class UnitRagdollManager {
         linearDamping: 0.62,
         angularDamping: 0.78,
         collisionFilterGroup: RAGDOLL_GROUP,
-        collisionFilterMask: GROUND_GROUP,
+        collisionFilterMask: RAGDOLL_COLLISION_MASK,
       });
       body.position.set(worldPos.x, worldPos.y, worldPos.z);
       body.quaternion.set(worldQuat.x, worldQuat.y, worldQuat.z, worldQuat.w);
@@ -143,12 +151,7 @@ export class UnitRagdollManager {
       constraints.push(constraint);
     }
 
-    const impulseDir = impulse ?? this.randomImpulse();
-    const pelvis =
-      links.find(link => /pelvis|hips|spine/i.test(link.bone.name)) ??
-      links[Math.floor(links.length * 0.35)] ??
-      links[0];
-    if (pelvis) this.applyImpulse(pelvis.body, impulseDir, 4.2);
+    this.applySkeletonImpulse(links, impulse);
 
     this.ragdolls.push({
       root: mesh,
@@ -162,7 +165,7 @@ export class UnitRagdollManager {
     });
   }
 
-  private spawnTumble(mesh: THREE.Group, impulse?: THREE.Vector3): void {
+  private spawnTumble(mesh: THREE.Group, impulse?: RagdollImpulse): void {
     mesh.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(mesh);
     const size = new THREE.Vector3();
@@ -186,7 +189,7 @@ export class UnitRagdollManager {
       linearDamping: 0.35,
       angularDamping: 0.55,
       collisionFilterGroup: RAGDOLL_GROUP,
-      collisionFilterMask: GROUND_GROUP,
+      collisionFilterMask: RAGDOLL_COLLISION_MASK,
     });
     body.position.set(center.x, center.y, center.z);
     body.quaternion.set(rootWorldQuat.x, rootWorldQuat.y, rootWorldQuat.z, rootWorldQuat.w);
@@ -249,16 +252,69 @@ export class UnitRagdollManager {
     rag.root.updateMatrixWorld(true);
   }
 
-  private applyImpulse(body: CANNON.Body, dir: THREE.Vector3, strength: number): void {
+  private applySkeletonImpulse(links: BoneLink[], impulse?: RagdollImpulse): void {
+    const pelvis =
+      links.find(link => /pelvis|hips|spine/i.test(link.bone.name)) ??
+      links[Math.floor(links.length * 0.35)] ??
+      links[0];
+
+    if (!impulse) {
+      if (pelvis) this.applyImpulse(pelvis.body, this.randomImpulse(), 4.2);
+      return;
+    }
+
+    const hitLink = impulse.point ? this.closestLinkToPoint(links, impulse.point) : pelvis;
+    if (hitLink) this.applyImpulse(hitLink.body, impulse, 7.8);
+    if (pelvis && pelvis !== hitLink) this.applyImpulse(pelvis.body, impulse, 2.4);
+  }
+
+  private closestLinkToPoint(links: BoneLink[], point: THREE.Vector3): BoneLink | null {
+    let best: BoneLink | null = null;
+    let bestDist = Infinity;
+
+    for (const link of links) {
+      const dx = link.body.position.x - point.x;
+      const dy = link.body.position.y - point.y;
+      const dz = link.body.position.z - point.z;
+      const dist = dx * dx + dy * dy + dz * dz;
+      if (dist < bestDist) {
+        best = link;
+        bestDist = dist;
+      }
+    }
+
+    return best;
+  }
+
+  private applyImpulse(
+    body: CANNON.Body,
+    impulse: RagdollImpulse | THREE.Vector3,
+    strength: number
+  ): void {
+    const dir = impulse instanceof THREE.Vector3 ? impulse : impulse.direction;
+    const normalized = dir.lengthSq() > 0.0001 ? dir.clone().normalize() : this.randomImpulse();
+    const finalStrength = impulse instanceof THREE.Vector3 ? strength : impulse.strength ?? strength;
+    const upward = impulse instanceof THREE.Vector3 ? 1.4 : impulse.upward ?? 1.2;
+    const hitPoint = impulse instanceof THREE.Vector3 ? undefined : impulse.point;
+    const relativePoint = hitPoint
+      ? new CANNON.Vec3(
+          hitPoint.x - body.position.x,
+          hitPoint.y - body.position.y,
+          hitPoint.z - body.position.z
+        )
+      : new CANNON.Vec3(0, 0.12, 0);
+
     body.applyImpulse(
-      new CANNON.Vec3(dir.x * strength, dir.y * strength * 0.45 + 1.4, dir.z * strength),
-      new CANNON.Vec3(0, 0.12, 0)
+      new CANNON.Vec3(
+        normalized.x * finalStrength,
+        normalized.y * finalStrength * 0.35 + upward,
+        normalized.z * finalStrength
+      ),
+      relativePoint
     );
-    body.angularVelocity.set(
-      (Math.random() - 0.5) * 4.5,
-      (Math.random() - 0.5) * 2.5,
-      (Math.random() - 0.5) * 4.5
-    );
+    body.angularVelocity.x += (Math.random() - 0.5) * 5.5 + normalized.z * 2.2;
+    body.angularVelocity.y += (Math.random() - 0.5) * 2.4;
+    body.angularVelocity.z += (Math.random() - 0.5) * 5.5 - normalized.x * 2.2;
   }
 
   private randomImpulse(): THREE.Vector3 {
@@ -272,11 +328,14 @@ export class UnitRagdollManager {
   private boneRadius(bone: THREE.Bone): number {
     const name = bone.name.toLowerCase();
     if (name.includes('head')) return 0.12;
-    if (name.includes('pelvis') || name.includes('spine')) return 0.13;
-    if (name.includes('thigh') || name.includes('upperarm')) return 0.08;
-    if (name.includes('calf') || name.includes('lowerarm')) return 0.07;
-    if (name.includes('hand') || name.includes('foot')) return 0.055;
-    return 0.075;
+    if (name.includes('pelvis') || name.includes('hips')) return 0.16;
+    if (name.includes('spine') || name.includes('chest')) return 0.15;
+    if (name.includes('thigh') || name.includes('upperleg')) return 0.095;
+    if (name.includes('upperarm')) return 0.085;
+    if (name.includes('calf') || name.includes('lowerleg')) return 0.08;
+    if (name.includes('lowerarm')) return 0.07;
+    if (name.includes('hand') || name.includes('foot')) return 0.06;
+    return 0.08;
   }
 
   private boneMass(bone: THREE.Bone): number {
