@@ -1,3 +1,7 @@
+<img width="2569" height="1355" alt="image" src="https://github.com/user-attachments/assets/68c98b52-7b90-4990-941a-42c94915b0e9" />
+<img width="2574" height="1352" alt="image" src="https://github.com/user-attachments/assets/4b455d45-4e36-4e38-a5f3-205ec23c273e" />
+
+
 # X-COM Browser
 
 A browser-based tactical combat prototype inspired by classic X-COM. The game runs in a 3D scene with grid movement, cover, destructible terrain, line-of-sight shooting, grenades, overwatch, simple squad AI, alien AI, and rigged unit animation.
