@@ -28,6 +28,10 @@ const riggedMobTextureUrls = import.meta.glob<string>(
   '../models/Tripo3d/RiggedModels/**/*.{JPEG,jpeg,JPG,jpg}',
   { query: '?url', import: 'default', eager: true }
 );
+const demoTextureUrls = import.meta.glob<string>(
+  '../models/Tripo Demo Model/**/*.{JPEG,jpeg,JPG,jpg}',
+  { query: '?url', import: 'default', eager: true }
+);
 
 const textureUrls: Record<string, string> = {
   ...heroTextureUrls,
@@ -35,6 +39,7 @@ const textureUrls: Record<string, string> = {
   ...objectTextureUrls,
   ...riggedHeroTextureUrls,
   ...riggedMobTextureUrls,
+  ...demoTextureUrls,
 };
 
 const textureCache = new Map<string, THREE.Texture>();

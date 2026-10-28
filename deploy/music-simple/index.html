@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Music Prompt Studio</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #090a0f;
+        --panel: rgba(19, 22, 31, 0.84);
+        --panel-strong: rgba(28, 32, 44, 0.94);
+        --line: rgba(255, 255, 255, 0.12);
+        --text: #f7f2ff;
+        --muted: #a7a2b8;
+        --accent: #ffce45;
+        --accent-2: #38d6c5;
+        --danger: #ff6b8a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at 15% 12%, rgba(56, 214, 197, 0.2), transparent 30%),
+          radial-gradient(circle at 82% 18%, rgba(255, 206, 69, 0.18), transparent 26%),
+          linear-gradient(135deg, #090a0f 0%, #10131c 52%, #080910 100%);
+        color: var(--text);
+      }
+
+      main {
+        width: min(980px, calc(100% - 32px));
+        min-height: 100vh;
+        margin: 0 auto;
+        display: grid;
+        align-content: center;
+        padding: 48px 0;
+      }
+
+      .shell {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        backdrop-filter: blur(22px);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.52);
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 22px 24px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .mark {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        color: #11131a;
+        background: linear-gradient(135deg, var(--accent), var(--accent-2));
+        font-weight: 900;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        line-height: 1.1;
+        letter-spacing: 0;
+      }
+
+      .sub {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .status {
+        min-width: 160px;
+        color: var(--muted);
+        font-size: 13px;
+        text-align: right;
+      }
+
+      .body {
+        display: block;
+      }
+
+      .compose,
+      .output {
+        padding: 24px;
+      }
+
+      .output {
+        border-top: 1px solid var(--line);
+        background: rgba(0, 0, 0, 0.16);
+      }
+
+      .prompt-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 10px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      textarea,
+      input[type='number'] {
+        border: 1px solid var(--line);
+        background: rgba(2, 4, 10, 0.74);
+        color: var(--text);
+        font: inherit;
+        outline: none;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 210px;
+        resize: vertical;
+        padding: 16px;
+        font-size: 17px;
+        line-height: 1.45;
+      }
+
+      .negative {
+        min-height: 86px;
+        margin-top: 16px;
+        font-size: 14px;
+      }
+
+      input[type='number'] {
+        width: 100%;
+        height: 42px;
+        padding: 0 12px;
+      }
+
+      textarea:focus,
+      input[type='number']:focus {
+        border-color: rgba(255, 206, 69, 0.58);
+        box-shadow: 0 0 0 4px rgba(255, 206, 69, 0.1);
+      }
+
+      input[type='range'] {
+        width: 100%;
+        accent-color: var(--accent);
+      }
+
+      .settings {
+        display: grid;
+        grid-template-columns: 1fr 108px;
+        gap: 14px;
+        align-items: end;
+        margin-top: 16px;
+      }
+
+      .field label {
+        margin-bottom: 8px;
+      }
+
+      .duration-line {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .duration-line .meta {
+        min-width: 40px;
+        text-align: right;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin-top: 16px;
+      }
+
+      .meta {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      button,
+      .download {
+        height: 48px;
+        border: 0;
+        padding: 0 18px;
+        background: var(--accent);
+        color: #10131a;
+        font: inherit;
+        font-weight: 850;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .progress {
+        height: 8px;
+        margin-top: 18px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      .bar {
+        width: 0%;
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        transition: width 220ms ease;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        background: var(--panel-strong);
+        padding: 18px;
+      }
+
+      .card + .card {
+        margin-top: 14px;
+      }
+
+      .card-title {
+        margin: 0 0 12px;
+        font-size: 14px;
+        font-weight: 850;
+      }
+
+      details.card {
+        padding: 0;
+      }
+
+      summary {
+        cursor: pointer;
+        padding: 18px;
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 850;
+      }
+
+      .spectrogram-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        padding: 0 18px 18px;
+      }
+
+      .spectrogram {
+        border: 1px solid var(--line);
+        background: rgba(2, 4, 10, 0.52);
+        padding: 10px;
+      }
+
+      .spectrogram-title {
+        margin: 0 0 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .spectrogram img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      audio {
+        width: 100%;
+      }
+
+      .empty {
+        min-height: 160px;
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        text-align: center;
+        border: 1px dashed var(--line);
+        padding: 18px;
+      }
+
+      .error {
+        color: var(--danger);
+        white-space: pre-wrap;
+      }
+
+      @media (max-width: 820px) {
+        main {
+          width: min(100% - 20px, 980px);
+          padding: 24px 0;
+          align-content: start;
+        }
+
+        .header,
+        .row,
+        .settings {
+          display: block;
+        }
+
+        .status {
+          margin-top: 12px;
+          text-align: left;
+        }
+
+        .field + .field {
+          margin-top: 14px;
+        }
+
+        button,
+        .download {
+          width: 100%;
+          margin-top: 12px;
+        }
+
+        .spectrogram-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="shell">
+        <div class="header">
+          <div class="brand">
+            <div class="mark">M</div>
+            <div>
+              <h1>Music Prompt Studio</h1>
+              <div class="sub">Medium (ARC), standard settings</div>
+            </div>
+          </div>
+          <div class="status" id="health">Checking backend...</div>
+        </div>
+
+        <div class="body">
+          <form class="compose" id="form">
+            <div class="prompt-head">
+              <label for="prompt">Prompt</label>
+              <span class="meta" id="promptCount">0/1000</span>
+            </div>
+            <textarea id="prompt" name="prompt" maxlength="1000" placeholder="Example: cyberpunk post rock, warm analog drums, wide cinematic guitars" required></textarea>
+
+            <div class="prompt-head">
+              <label for="negativePrompt">Negative prompt</label>
+              <span class="meta" id="negativeCount">0/500</span>
+            </div>
+            <textarea id="negativePrompt" class="negative" name="negative_prompt" maxlength="500" placeholder="vocals, distortion, harshness, noise"></textarea>
+
+            <div class="settings">
+              <div class="field">
+                <label for="durationRange">Duration</label>
+                <div class="duration-line">
+                  <input id="durationRange" type="range" min="5" max="180" step="1" value="30" />
+                  <span class="meta" id="durationLabel">0:30</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="durationInput">Seconds</label>
+                <input id="durationInput" type="number" min="5" max="180" step="1" value="30" />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="meta" id="jobMeta">Length 0:30 | Steps 8 | CFG 1 | WAV</div>
+              <button id="generate" type="submit">Generate</button>
+            </div>
+
+            <div class="progress" aria-hidden="true">
+              <div class="bar" id="bar"></div>
+            </div>
+          </form>
+
+          <aside class="output">
+            <div id="result" class="empty">The audio player will appear here after generation.</div>
+          </aside>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById('form');
+      const promptInput = document.getElementById('prompt');
+      const negativeInput = document.getElementById('negativePrompt');
+      const generateButton = document.getElementById('generate');
+      const result = document.getElementById('result');
+      const health = document.getElementById('health');
+      const bar = document.getElementById('bar');
+      const jobMeta = document.getElementById('jobMeta');
+      const promptCount = document.getElementById('promptCount');
+      const negativeCount = document.getElementById('negativeCount');
+      const durationRange = document.getElementById('durationRange');
+      const durationInput = document.getElementById('durationInput');
+      const durationLabel = document.getElementById('durationLabel');
+
+      const defaults = {
+        model_name: 'medium',
+        steps: '8',
+        cfg_scale: '1',
+        seed: '-1',
+        batch_size: '1',
+        init_noise_level: '1',
+        init_audio_type: 'Audio',
+        file_format: 'wav',
+        file_naming: 'verbose',
+        custom_name: '',
+      };
+
+      function clampDuration(value) {
+        const number = Math.round(Number(value));
+        if (!Number.isFinite(number)) return 30;
+        return Math.max(5, Math.min(180, number));
+      }
+
+      function formatDuration(seconds) {
+        const safeSeconds = clampDuration(seconds);
+        const minutes = Math.floor(safeSeconds / 60);
+        const rest = String(safeSeconds % 60).padStart(2, '0');
+        return `${minutes}:${rest}`;
+      }
+
+      function currentDuration() {
+        return clampDuration(durationInput.value);
+      }
+
+      function settingsLabel() {
+        return `Length ${formatDuration(currentDuration())} | Steps 8 | CFG 1 | WAV`;
+      }
+
+      function syncDuration(value) {
+        const duration = clampDuration(value);
+        durationRange.value = String(duration);
+        durationInput.value = String(duration);
+        durationLabel.textContent = formatDuration(duration);
+        jobMeta.textContent = settingsLabel();
+      }
+
+      function updateCounters() {
+        promptCount.textContent = `${promptInput.value.length}/1000`;
+        negativeCount.textContent = `${negativeInput.value.length}/500`;
+      }
+
+      function setProgress(progress) {
+        const step = Number(progress?.step ?? 0);
+        const steps = Number(progress?.steps ?? defaults.steps);
+        const pct = steps > 0 ? Math.max(0, Math.min(100, (step / steps) * 100)) : 0;
+        bar.style.width = `${pct}%`;
+        jobMeta.textContent = progress ? `Generating ${step}/${steps}` : settingsLabel();
+      }
+
+      function showError(message) {
+        result.className = 'card error';
+        result.textContent = message;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
+      function renderSpectrograms(spectrograms) {
+        const labels = {
+          mel: 'MEL',
+          stft: 'STFT',
+          chromagram: 'Chromagram',
+          cqt: 'CQT',
+        };
+        const entries = Object.entries(labels)
+          .map(([key, label]) => ({ key, label, value: spectrograms?.[key] }))
+          .filter((entry) => entry.value);
+
+        if (!entries.length) return '';
+
+        const images = entries.map((entry) => `
+          <div class="spectrogram">
+            <p class="spectrogram-title">${entry.label}</p>
+            <img alt="${entry.label} spectrogram" src="data:image/png;base64,${entry.value}" loading="lazy" />
+          </div>
+        `).join('');
+
+        return `
+          <details class="card">
+            <summary>Spectrograms (${entries.length})</summary>
+            <div class="spectrogram-grid">${images}</div>
+          </details>
+        `;
+      }
+
+      function showPlayer(item, spectrograms = item.spectrograms) {
+        const mimeType = item.mime_type || 'audio/wav';
+        const filename = item.filename || 'music-xedoc.wav';
+        const src = `data:${mimeType};base64,${item.audio_base64}`;
+        result.className = '';
+        result.innerHTML = `
+          <div class="card">
+            <p class="card-title">Result</p>
+            <audio controls src="${src}"></audio>
+          </div>
+          <div class="card">
+            <a class="download" download="${escapeHtml(filename)}" href="${src}">Download result</a>
+          </div>
+          ${renderSpectrograms(spectrograms)}
+        `;
+      }
+
+      async function loadSpectrograms(jobId, index = 0) {
+        try {
+          const response = await fetch(`/api/spectrogram/${jobId}/${index}`, { cache: 'no-store' });
+          if (!response.ok) return null;
+          return await readJson(response);
+        } catch {
+          return null;
+        }
+      }
+
+      async function readJson(response) {
+        const text = await response.text();
+        try {
+          return text ? JSON.parse(text) : {};
+        } catch {
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+      }
+
+      async function checkHealth() {
+        try {
+          const response = await fetch('/api/model-info', { cache: 'no-store' });
+          const payload = await readJson(response);
+          if (!response.ok) throw new Error(payload.detail || payload.error || `HTTP ${response.status}`);
+          health.textContent = `${payload.active_model?.toUpperCase() || 'MEDIUM'} ready`;
+        } catch (error) {
+          health.textContent = 'backend offline';
+        }
+      }
+
+      async function pollJob(id) {
+        while (true) {
+          const response = await fetch(`/api/jobs/${id}`, { cache: 'no-store' });
+          const job = await readJson(response);
+          if (!response.ok) throw new Error(job.detail || job.error || `HTTP ${response.status}`);
+          setProgress(job.progress);
+
+          if (job.status === 'completed') {
+            const item = job.result?.item || job.result?.items?.[0];
+            if (!item?.audio_base64) throw new Error('Generation completed without audio.');
+            setProgress({ step: Number(defaults.steps), steps: Number(defaults.steps) });
+            const spectrograms = item.spectrograms || await loadSpectrograms(id, 0);
+            showPlayer(item, spectrograms);
+            return;
+          }
+
+          if (job.status === 'failed') {
+            throw new Error(job.error || 'Generation failed.');
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+        }
+      }
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const prompt = promptInput.value.trim();
+        if (!prompt) return;
+        updateCounters();
+
+        generateButton.disabled = true;
+        result.className = 'empty';
+        result.textContent = 'Generating. You can keep this tab open.';
+        setProgress({ step: 0, steps: Number(defaults.steps) });
+
+        try {
+          const body = new FormData();
+          Object.entries(defaults).forEach(([key, value]) => body.append(key, value));
+          body.set('duration', String(currentDuration()));
+          body.set('prompt', prompt);
+          body.set('negative_prompt', negativeInput.value.trim());
+
+          const response = await fetch('/api/generate-jobs', { method: 'POST', body });
+          const payload = await readJson(response);
+          if (!response.ok) throw new Error(payload.detail || payload.error || `HTTP ${response.status}`);
+          const id = payload.job?.id;
+          if (!id) throw new Error('Backend did not return a job id.');
+
+          await pollJob(id);
+        } catch (error) {
+          showError(error?.message || String(error));
+        } finally {
+          generateButton.disabled = false;
+          jobMeta.textContent = settingsLabel();
+        }
+      });
+
+      durationRange.addEventListener('input', () => syncDuration(durationRange.value));
+      durationInput.addEventListener('input', () => syncDuration(durationInput.value));
+      durationInput.addEventListener('blur', () => syncDuration(durationInput.value));
+      promptInput.addEventListener('input', updateCounters);
+      negativeInput.addEventListener('input', updateCounters);
+
+      syncDuration(30);
+      updateCounters();
+      checkHealth();
+      setInterval(checkHealth, 15000);
+    </script>
+  </body>
+</html>

@@ -38,6 +38,11 @@ const riggedMobUrls = import.meta.glob<string>(
   { query: '?url', import: 'default', eager: true }
 );
 
+const demoRiggedUrls = import.meta.glob<string>(
+  '../models/Tripo Demo Model/**/*.fbx',
+  { query: '?url', import: 'default', eager: true }
+);
+
 function slugFromPath(path: string): string {
   const parts = path.replace(/\\/g, '/').split('/');
   const folder = parts.length >= 2 ? parts[parts.length - 2] : 'model';
@@ -155,6 +160,8 @@ export const ALL_MOB_IDS = mobManifest.map(m => m.mobId);
 /** Все heroId из манифеста */
 export const ALL_HERO_IDS = heroManifest.map(h => h.heroId);
 
+export const ALL_DEMO_UNIT_IDS = ['tripo_demo'];
+
 function findGlobKey(glob: Record<string, string>, segment: string): string | null {
   return Object.keys(glob).find(k => k.replace(/\\/g, '/').includes(segment)) ?? null;
 }
@@ -176,6 +183,11 @@ export function mobRiggedPath(mobId: string): string | null {
   return findGlobKey(riggedMobUrls, `/RiggedModels/${mobId}/`);
 }
 
+export function demoRiggedPath(demoId: string): string | null {
+  if (demoId !== 'tripo_demo') return null;
+  return findGlobKey(demoRiggedUrls, '/Tripo Demo Model/');
+}
+
 export function mobStaticPath(mobId: string): string | null {
   const entry = mobManifest.find(m => m.mobId === mobId);
   if (!entry) return null;
@@ -195,6 +207,11 @@ export function mobRiggedUrl(mobId: string): string | null {
   return findGlobUrl(riggedMobUrls, `/RiggedModels/${mobId}/`);
 }
 
+export function demoRiggedUrl(demoId: string): string | null {
+  if (demoId !== 'tripo_demo') return null;
+  return findGlobUrl(demoRiggedUrls, '/Tripo Demo Model/');
+}
+
 export function mobStaticUrl(mobId: string): string | null {
   const entry = mobManifest.find(m => m.mobId === mobId);
   if (!entry) return null;
@@ -202,7 +219,7 @@ export function mobStaticUrl(mobId: string): string | null {
   return findGlobUrl(enemyFbxUrls, `/Models/${folder}/`);
 }
 
-export function unitModelId(kind: 'hero' | 'mob', assetId: string): string {
+export function unitModelId(kind: 'hero' | 'mob' | 'demo', assetId: string): string {
   return `unit_${kind}_${assetId}`;
 }
 

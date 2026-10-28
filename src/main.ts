@@ -4,6 +4,7 @@ import { AnimationManager } from './game/Animations';
 import { buildAssetManifest, probeAssetSizes } from './game/buildAssetManifest';
 import { loadProgress } from './game/LoadProgress';
 import { modelLoader } from './game/ModelLoader';
+import { RagdollLab } from './game/RagdollLab';
 import { HUD } from './ui/HUD';
 import { LoadingScreen } from './ui/LoadingScreen';
 import type { ActionMode } from './types';
@@ -86,15 +87,25 @@ class Game {
 async function bootstrap(): Promise<void> {
   const loader = new LoadingScreen();
   loader.attach();
+  const isRagdollLab =
+    window.location.pathname.replace(/\/+$/, '') === '/ragdoll' ||
+    new URLSearchParams(window.location.search).get('lab') === 'ragdoll';
 
-  const manifest = buildAssetManifest();
+  const manifest = buildAssetManifest(isRagdollLab);
   loadProgress.init(manifest);
 
   let ok = true;
   try {
     const totalBytes = await probeAssetSizes(manifest.map(item => item.url));
     loadProgress.setTotalBytes(totalBytes);
-    await modelLoader.loadAll();
+    await modelLoader.loadAll([], isRagdollLab);
+    loadProgress.setPhase('deploying', 'Сборка сцены');
+    if (isRagdollLab) {
+      new RagdollLab();
+    } else {
+      new Game();
+    }
+    await waitForFrames(2);
   } catch (err) {
     ok = false;
     console.error(err);
@@ -102,7 +113,19 @@ async function bootstrap(): Promise<void> {
   }
 
   await loader.finish(ok);
-  new Game();
+}
+
+function waitForFrames(count: number): Promise<void> {
+  return new Promise(resolve => {
+    const tick = (left: number) => {
+      if (left <= 0) {
+        resolve();
+        return;
+      }
+      requestAnimationFrame(() => tick(left - 1));
+    };
+    tick(count);
+  });
 }
 
 void bootstrap();

@@ -17,7 +17,7 @@ export interface LoadProgressSnapshot {
   currentKind: AssetKind | null;
   currentFileLoaded: number;
   currentFileTotal: number;
-  phase: 'probe' | 'loading' | 'done' | 'error';
+  phase: 'probe' | 'loading' | 'deploying' | 'done' | 'error';
   percent: number;
 }
 
@@ -116,7 +116,7 @@ export class LoadProgress {
     const completedFiles = this.completed.size;
 
     let percent = 0;
-    if (this.phase === 'done') {
+    if (this.phase === 'done' || this.phase === 'deploying') {
       percent = 100;
     } else if (this.totalBytes > 0) {
       percent = Math.round(clamp01(this.loadedBytes / this.totalBytes) * 100);

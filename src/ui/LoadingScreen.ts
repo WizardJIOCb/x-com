@@ -119,6 +119,8 @@ export class LoadingScreen {
     this.currentEl.textContent =
       snap.phase === 'done'
         ? 'Развёртывание завершено'
+        : snap.phase === 'deploying'
+          ? 'Развёртывание тактической сцены...'
         : `${kind}: ${snap.currentLabel}`;
 
     switch (snap.phase) {
@@ -127,6 +129,9 @@ export class LoadingScreen {
         break;
       case 'loading':
         this.statusEl.textContent = 'Загрузка тактических ассетов';
+        break;
+      case 'deploying':
+        this.statusEl.textContent = 'Сборка карты, юнитов и первого кадра';
         break;
       case 'done':
         this.statusEl.textContent = 'Готово к бою';

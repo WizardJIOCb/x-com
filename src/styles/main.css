@@ -919,3 +919,149 @@ body {
     font-size: 11px;
   }
 }
+
+.ragdoll-lab-page #app {
+  height: 100vh;
+}
+
+.ragdoll-lab {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+  min-height: 0;
+  background: #0b1017;
+}
+
+.ragdoll-lab-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 16px;
+  background: #121a24;
+  border-right: 1px solid #2c3e50;
+}
+
+.ragdoll-lab-brand {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ragdoll-lab-title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #00d4aa;
+}
+
+.ragdoll-lab-back {
+  color: #7ee8ff;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.ragdoll-lab-back:hover {
+  color: #ffffff;
+}
+
+.ragdoll-lab-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.ragdoll-lab-hint {
+  padding: 10px 12px;
+  border: 1px solid rgba(126, 232, 255, 0.25);
+  background: rgba(126, 232, 255, 0.08);
+  color: #b7c9d8;
+  font-size: 12px;
+  line-height: 1.4;
+  border-radius: 6px;
+}
+
+.ragdoll-model-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ragdoll-model-section {
+  margin: 14px 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #8395a7;
+}
+
+.ragdoll-model-btn {
+  display: block;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 9px 10px;
+  border: 1px solid #2c3e50;
+  background: #1a2535;
+  color: #c8d6e5;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.ragdoll-model-btn:hover {
+  border-color: #00a888;
+  background: #223247;
+}
+
+.ragdoll-model-btn.active {
+  border-color: #00d4aa;
+  background: rgba(0, 212, 170, 0.16);
+  color: #ffffff;
+}
+
+.ragdoll-lab-stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.ragdoll-lab-view {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+}
+
+.ragdoll-lab-view canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.ragdoll-lab-status {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  max-width: min(520px, calc(100% - 32px));
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 212, 170, 0.3);
+  background: rgba(10, 14, 20, 0.78);
+  color: #d8e6f0;
+  font-size: 12px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+@media (max-width: 800px) {
+  .ragdoll-lab {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .ragdoll-lab-sidebar {
+    max-height: 42vh;
+    border-right: none;
+    border-bottom: 1px solid #2c3e50;
+  }
+}

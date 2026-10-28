@@ -8,9 +8,15 @@ interface BoneLink {
   body: CANNON.Body;
   bindLocalPosition: THREE.Vector3;
   bindLocalQuaternion: THREE.Quaternion;
+  bodyToBoneQuaternion: THREE.Quaternion;
   bindDirection: THREE.Vector3;
   length: number;
   radius: number;
+}
+
+interface ProxyLink {
+  body: CANNON.Body;
+  mesh: THREE.Mesh;
 }
 
 export interface RagdollImpulse {
@@ -30,6 +36,8 @@ interface ActiveRagdoll {
   rootBody: CANNON.Body | null;
   rootBindWorldPosition: THREE.Vector3;
   rootBindPosition: THREE.Vector3;
+  proxyRoot: THREE.Group | null;
+  proxyLinks: ProxyLink[];
   age: number;
   lifetime: number;
 }
@@ -81,13 +89,14 @@ export class UnitRagdollManager {
       const rag = this.ragdolls[i];
       rag.age += dt;
 
-      if (rag.skinned) this.syncSkeleton(rag);
+      if (rag.proxyRoot) this.syncProxy(rag);
+      else if (rag.skinned) this.syncSkeleton(rag);
       else this.syncTumble(rag);
 
       const fadeStart = rag.lifetime - 1.2;
       if (rag.age > fadeStart) {
         const t = Math.min(1, (rag.age - fadeStart) / 1.2);
-        this.setOpacity(rag.root, 1 - t);
+        this.setOpacity(rag.proxyRoot ?? rag.root, 1 - t);
       }
 
       if (rag.age >= rag.lifetime) toRemove.push(i);
@@ -105,7 +114,144 @@ export class UnitRagdollManager {
     }
   }
 
-  private spawnSkeletal(
+  spawnProxyRagdoll(
+    mesh: THREE.Group,
+    skinned: THREE.SkinnedMesh,
+    impulse?: RagdollImpulse
+  ): void {
+    mesh.updateMatrixWorld(true);
+    skinned.skeleton.update();
+
+    const bones = new Map<string, THREE.Bone>();
+    for (const bone of skinned.skeleton.bones) bones.set(bone.name.toLowerCase(), bone);
+
+    const material = this.makeProxyMaterial(mesh);
+    const proxyRoot = new THREE.Group();
+    proxyRoot.name = 'unitRagdollProxy';
+    this.group.add(proxyRoot);
+
+    const proxyLinks: ProxyLink[] = [];
+    const constraints: CANNON.Constraint[] = [];
+    const bodyByName = new Map<string, CANNON.Body>();
+
+    const addSegment = (
+      id: string,
+      fromName: string,
+      toName: string,
+      radius: number,
+      mass: number,
+      kind: 'capsule' | 'box' | 'head' = 'capsule'
+    ) => {
+      const from = bones.get(fromName);
+      const to = bones.get(toName);
+      if (!from || !to) return;
+
+      const a = from.getWorldPosition(new THREE.Vector3());
+      const b = to.getWorldPosition(new THREE.Vector3());
+      const dir = b.clone().sub(a);
+      const length = dir.length();
+      if (length < 0.035) return;
+
+      const center = a.clone().add(b).multiplyScalar(0.5);
+      const quat = new THREE.Quaternion().setFromUnitVectors(Y_AXIS, dir.normalize());
+      const halfLen = Math.max(0.025, length * 0.5);
+      const shape = new CANNON.Box(new CANNON.Vec3(radius, halfLen, radius));
+      const body = new CANNON.Body({
+        mass,
+        shape,
+        linearDamping: 0.34,
+        angularDamping: 0.5,
+        collisionFilterGroup: RAGDOLL_GROUP,
+        collisionFilterMask: RAGDOLL_COLLISION_MASK,
+      });
+      body.position.set(center.x, center.y, center.z);
+      body.quaternion.set(quat.x, quat.y, quat.z, quat.w);
+      this.world.addBody(body);
+
+      const geometry = kind === 'head'
+        ? new THREE.SphereGeometry(radius * 1.2, 10, 8)
+        : kind === 'box'
+          ? new THREE.BoxGeometry(radius * 2.2, length, radius * 1.6)
+          : new THREE.CapsuleGeometry(radius, Math.max(0.01, length - radius * 2), 4, 8);
+      const visual = new THREE.Mesh(geometry, material.clone());
+      visual.castShadow = true;
+      visual.receiveShadow = true;
+      proxyRoot.add(visual);
+
+      proxyLinks.push({ body, mesh: visual });
+      bodyByName.set(id, body);
+    };
+
+    addSegment('torso', 'pelvis', 'spine_02', 0.145, 2.2, 'box');
+    addSegment('head', 'neck_01', 'head', 0.105, 0.7, 'head');
+    for (const side of ['l', 'r']) {
+      addSegment(`upperarm_${side}`, `upperarm_${side}`, `lowerarm_${side}`, 0.055, 0.45);
+      addSegment(`lowerarm_${side}`, `lowerarm_${side}`, `hand_${side}`, 0.045, 0.35);
+      addSegment(`thigh_${side}`, `thigh_${side}`, `calf_${side}`, 0.07, 0.75);
+      addSegment(`calf_${side}`, `calf_${side}`, `foot_${side}`, 0.055, 0.55);
+    }
+    material.dispose();
+
+    if (proxyLinks.length === 0) {
+      proxyRoot.parent?.remove(proxyRoot);
+      this.spawnTumble(mesh, impulse);
+      return;
+    }
+
+    const connect = (aName: string, bName: string, jointBoneName: string, strength = 1.2e5) => {
+      const a = bodyByName.get(aName);
+      const b = bodyByName.get(bName);
+      const jointBone = bones.get(jointBoneName);
+      if (!a || !b || !jointBone) return;
+      const point = jointBone.getWorldPosition(new THREE.Vector3());
+      const joint = new CANNON.Vec3(point.x, point.y, point.z);
+      const constraint = new CANNON.PointToPointConstraint(
+        a,
+        a.pointToLocalFrame(joint),
+        b,
+        b.pointToLocalFrame(joint),
+        strength
+      );
+      constraint.collideConnected = false;
+      this.world.addConstraint(constraint);
+      constraints.push(constraint);
+    };
+
+    connect('torso', 'head', 'neck_01');
+    for (const side of ['l', 'r']) {
+      connect('torso', `upperarm_${side}`, `upperarm_${side}`);
+      connect(`upperarm_${side}`, `lowerarm_${side}`, `lowerarm_${side}`);
+      connect('torso', `thigh_${side}`, `thigh_${side}`, 1.8e5);
+      connect(`thigh_${side}`, `calf_${side}`, `calf_${side}`, 1.5e5);
+    }
+
+    mesh.visible = false;
+
+    const impulseTarget = impulse?.point
+      ? this.closestProxyToPoint(proxyLinks, impulse.point)
+      : bodyByName.get('torso') ?? proxyLinks[0]?.body;
+    if (impulseTarget) this.applyImpulse(impulseTarget, impulse ?? this.randomImpulse(), 8.5);
+    const torso = bodyByName.get('torso');
+    if (torso && torso !== impulseTarget) this.applyImpulse(torso, impulse ?? this.randomImpulse(), 2.2);
+
+    this.ragdolls.push({
+      root: mesh,
+      skinned,
+      links: [],
+      constraints,
+      body: null,
+      rootOffset: new THREE.Vector3(),
+      rootBody: null,
+      rootBindWorldPosition: new THREE.Vector3(),
+      rootBindPosition: new THREE.Vector3(),
+      proxyRoot,
+      proxyLinks,
+      age: 0,
+      lifetime: 5.5,
+    });
+  }
+
+  spawnSkeletal(
     mesh: THREE.Group,
     skinned: THREE.SkinnedMesh,
     impulse?: RagdollImpulse
@@ -121,6 +267,7 @@ export class UnitRagdollManager {
     const midpoint = new THREE.Vector3();
     const segmentDir = new THREE.Vector3();
     const bodyQuat = new THREE.Quaternion();
+    const boneWorldQuat = new THREE.Quaternion();
 
     for (const bone of skinned.skeleton.bones) {
       const child = this.primaryBoneChild(bone);
@@ -150,6 +297,7 @@ export class UnitRagdollManager {
       body.quaternion.set(bodyQuat.x, bodyQuat.y, bodyQuat.z, bodyQuat.w);
 
       this.world.addBody(body);
+      bone.getWorldQuaternion(boneWorldQuat);
 
       const link: BoneLink = {
         bone,
@@ -157,6 +305,7 @@ export class UnitRagdollManager {
         body,
         bindLocalPosition: bone.position.clone(),
         bindLocalQuaternion: bone.quaternion.clone(),
+        bodyToBoneQuaternion: bodyQuat.clone().invert().multiply(boneWorldQuat),
         bindDirection: child.position.lengthSq() > 0.0001
           ? child.position.clone().normalize()
           : new THREE.Vector3(0, 1, 0),
@@ -176,13 +325,17 @@ export class UnitRagdollManager {
       const joint = new CANNON.Vec3(boneWorldPos.x, boneWorldPos.y, boneWorldPos.z);
       const pivotA = parentLink.body.pointToLocalFrame(joint);
       const pivotB = link.body.pointToLocalFrame(joint);
-      const constraint = new CANNON.PointToPointConstraint(
-        parentLink.body,
+      const jointAxis = this.cannonVecFromThree(this.segmentWorldDirection(link));
+      const constraint = new CANNON.ConeTwistConstraint(parentLink.body, link.body, {
         pivotA,
-        link.body,
         pivotB,
-        2.5e5
-      );
+        axisA: parentLink.body.vectorToLocalFrame(jointAxis),
+        axisB: link.body.vectorToLocalFrame(jointAxis),
+        angle: this.jointConeAngle(link.bone.name),
+        twistAngle: this.jointTwistAngle(link.bone.name),
+        maxForce: 2.5e5,
+        collideConnected: false,
+      });
       constraint.collideConnected = false;
       this.world.addConstraint(constraint);
       constraints.push(constraint);
@@ -208,6 +361,8 @@ export class UnitRagdollManager {
         ? new THREE.Vector3(rootLink.body.position.x, rootLink.body.position.y, rootLink.body.position.z)
         : new THREE.Vector3(),
       rootBindPosition: mesh.position.clone(),
+      proxyRoot: null,
+      proxyLinks: [],
       age: 0,
       lifetime: 5.5,
     });
@@ -254,9 +409,19 @@ export class UnitRagdollManager {
       rootBody: null,
       rootBindWorldPosition: new THREE.Vector3(),
       rootBindPosition: new THREE.Vector3(),
+      proxyRoot: null,
+      proxyLinks: [],
       age: 0,
       lifetime: 4.5,
     });
+  }
+
+  private syncProxy(rag: ActiveRagdoll): void {
+    for (const { body, mesh } of rag.proxyLinks) {
+      mesh.position.set(body.position.x, body.position.y, body.position.z);
+      mesh.quaternion.set(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
+      mesh.updateMatrixWorld(true);
+    }
   }
 
   private syncSkeleton(rag: ActiveRagdoll): void {
@@ -273,11 +438,10 @@ export class UnitRagdollManager {
     }
 
     const bodyQuat = new THREE.Quaternion();
-    const worldDir = new THREE.Vector3();
-    const localDir = new THREE.Vector3();
+    const desiredWorldQuat = new THREE.Quaternion();
+    const localQuat = new THREE.Quaternion();
     const parentWorldQuat = new THREE.Quaternion();
     const parentInvQuat = new THREE.Quaternion();
-    const deltaQuat = new THREE.Quaternion();
 
     for (const link of rag.links) {
       const { bone, body } = link;
@@ -285,22 +449,22 @@ export class UnitRagdollManager {
       bone.position.copy(link.bindLocalPosition);
 
       bodyQuat.set(body.quaternion.x, body.quaternion.y, body.quaternion.z, body.quaternion.w);
-      worldDir.copy(Y_AXIS).applyQuaternion(bodyQuat).normalize();
-      localDir.copy(worldDir);
+      desiredWorldQuat.copy(bodyQuat).multiply(link.bodyToBoneQuaternion);
+      localQuat.copy(desiredWorldQuat);
 
       if (bone.parent) {
         bone.parent.updateMatrixWorld(true);
         bone.parent.getWorldQuaternion(parentWorldQuat);
         parentInvQuat.copy(parentWorldQuat).invert();
-        localDir.applyQuaternion(parentInvQuat).normalize();
+        localQuat.premultiply(parentInvQuat);
       }
 
-      deltaQuat.setFromUnitVectors(link.bindDirection, localDir);
-      bone.quaternion.copy(deltaQuat.multiply(link.bindLocalQuaternion));
+      bone.quaternion.copy(localQuat.normalize());
       bone.updateMatrixWorld(true);
     }
 
     rag.skinned.skeleton.update();
+    this.keepAboveGround(rag.root);
   }
 
   private syncTumble(rag: ActiveRagdoll): void {
@@ -353,6 +517,64 @@ export class UnitRagdollManager {
     return best;
   }
 
+  private closestProxyToPoint(links: ProxyLink[], point: THREE.Vector3): CANNON.Body | null {
+    let best: CANNON.Body | null = null;
+    let bestDist = Infinity;
+
+    for (const { body } of links) {
+      const dx = body.position.x - point.x;
+      const dy = body.position.y - point.y;
+      const dz = body.position.z - point.z;
+      const dist = dx * dx + dy * dy + dz * dz;
+      if (dist < bestDist) {
+        best = body;
+        bestDist = dist;
+      }
+    }
+
+    return best;
+  }
+
+  private segmentWorldDirection(link: BoneLink): THREE.Vector3 {
+    const from = link.bone.getWorldPosition(new THREE.Vector3());
+    const to = link.child?.getWorldPosition(new THREE.Vector3());
+    if (!to) return new THREE.Vector3(0, 1, 0);
+
+    const dir = to.sub(from);
+    return dir.lengthSq() > 0.0001 ? dir.normalize() : new THREE.Vector3(0, 1, 0);
+  }
+
+  private cannonVecFromThree(v: THREE.Vector3): CANNON.Vec3 {
+    return new CANNON.Vec3(v.x, v.y, v.z);
+  }
+
+  private jointConeAngle(boneName: string): number {
+    const name = boneName.toLowerCase();
+    if (/forearm|lowerarm|calf|lowerleg|shin/.test(name)) return Math.PI * 0.16;
+    if (/head|neck/.test(name)) return Math.PI * 0.18;
+    if (/upperarm|thigh|upperleg/.test(name)) return Math.PI * 0.36;
+    if (/spine|chest|pelvis|hips/.test(name)) return Math.PI * 0.2;
+    return Math.PI * 0.28;
+  }
+
+  private jointTwistAngle(boneName: string): number {
+    const name = boneName.toLowerCase();
+    if (/forearm|lowerarm|calf|lowerleg|shin/.test(name)) return Math.PI * 0.08;
+    if (/head|neck/.test(name)) return Math.PI * 0.12;
+    if (/upperarm|thigh|upperleg/.test(name)) return Math.PI * 0.2;
+    return Math.PI * 0.14;
+  }
+
+  private keepAboveGround(root: THREE.Object3D): void {
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root);
+    const minY = MODEL_FLOOR_Y - 0.015;
+    if (!Number.isFinite(box.min.y) || box.min.y >= minY) return;
+
+    root.position.y += minY - box.min.y;
+    root.updateMatrixWorld(true);
+  }
+
   private applyImpulse(
     body: CANNON.Body,
     impulse: RagdollImpulse | THREE.Vector3,
@@ -390,6 +612,72 @@ export class UnitRagdollManager {
       0.3 + Math.random() * 0.35,
       (Math.random() - 0.5) * 2
     ).normalize();
+  }
+
+  stabilizeSkinnedCorpse(skinned: THREE.SkinnedMesh): void {
+    const tmp = new THREE.Quaternion();
+
+    for (const bone of skinned.skeleton.bones) {
+      const name = bone.name.toLowerCase();
+      const side = this.boneSide(name);
+      tmp.identity();
+
+      if (/upperarm|arm|shoulder/.test(name) && side !== 0) {
+        tmp.setFromEuler(new THREE.Euler(0.08, 0, side * 0.28));
+      } else if (/forearm|lowerarm/.test(name) && side !== 0) {
+        tmp.setFromEuler(new THREE.Euler(0.16, 0, side * 0.18));
+      } else if (/thigh|upperleg/.test(name) && side !== 0) {
+        tmp.setFromEuler(new THREE.Euler(-0.12, 0, side * 0.12));
+      } else if (/calf|lowerleg|shin/.test(name)) {
+        tmp.setFromEuler(new THREE.Euler(0.22, 0, 0));
+      } else if (/spine|chest/.test(name)) {
+        tmp.setFromEuler(new THREE.Euler(0.06, 0, 0));
+      } else {
+        continue;
+      }
+
+      bone.quaternion.multiply(tmp);
+      bone.updateMatrixWorld(true);
+    }
+
+    skinned.skeleton.update();
+  }
+
+  private boneSide(name: string): number {
+    if (/left|\.l|_l\b| l\b/.test(name)) return 1;
+    if (/right|\.r|_r\b| r\b/.test(name)) return -1;
+    return 0;
+  }
+
+  private makeProxyMaterial(root: THREE.Object3D): THREE.MeshStandardMaterial {
+    let source: THREE.MeshStandardMaterial | null = null;
+
+    root.traverse(child => {
+      if (source || !(child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh)) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (material instanceof THREE.MeshStandardMaterial) {
+          source = material;
+          return;
+        }
+      }
+    });
+
+    const material = source === null
+      ? new THREE.MeshStandardMaterial({ color: 0x222733, roughness: 0.85, metalness: 0.15 })
+      : (source as THREE.MeshStandardMaterial).clone();
+
+    material.map = null;
+    material.normalMap = null;
+    material.roughnessMap = null;
+    material.metalnessMap = null;
+    material.color.lerp(new THREE.Color(0x111318), 0.35);
+    material.roughness = Math.max(material.roughness, 0.7);
+    material.metalness = Math.min(material.metalness, 0.25);
+    material.emissive.setHex(0x000000);
+    material.emissiveIntensity = 0;
+    material.needsUpdate = true;
+    return material;
   }
 
   private primaryBoneChild(bone: THREE.Bone): THREE.Bone | null {
@@ -501,7 +789,19 @@ export class UnitRagdollManager {
   private disposeRagdoll(rag: ActiveRagdoll): void {
     for (const constraint of rag.constraints) this.world.removeConstraint(constraint);
     for (const { body } of rag.links) this.world.removeBody(body);
+    for (const { body } of rag.proxyLinks) this.world.removeBody(body);
     if (rag.body) this.world.removeBody(rag.body);
+
+    if (rag.proxyRoot) {
+      rag.proxyRoot.parent?.remove(rag.proxyRoot);
+      rag.proxyRoot.traverse(obj => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+          else obj.material.dispose();
+        }
+      });
+    }
 
     rag.root.parent?.remove(rag.root);
     rag.root.traverse(obj => {

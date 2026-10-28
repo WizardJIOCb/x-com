@@ -3,11 +3,14 @@ import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import type { ModelEntry } from './ModelCatalog';
 import {
+  ALL_DEMO_UNIT_IDS,
   ALL_HERO_IDS,
   ALL_MOB_IDS,
   ALL_MODELS,
   ALIEN_TO_MOB,
   SOLDIER_TO_HERO,
+  demoRiggedPath,
+  demoRiggedUrl,
   heroRiggedPath,
   heroRiggedUrl,
   heroStaticPath,
@@ -88,16 +91,16 @@ export class ModelLoader {
   private loading: Promise<void> | null = null;
   ready = false;
 
-  async loadAll(extraEntries: ModelEntry[] = []): Promise<void> {
+  async loadAll(extraEntries: ModelEntry[] = [], includeDemoUnits = false): Promise<void> {
     if (this.ready) return;
     if (this.loading) return this.loading;
 
-    this.loading = this.loadEverything([...ALL_MODELS, ...extraEntries]);
+    this.loading = this.loadEverything([...ALL_MODELS, ...extraEntries], includeDemoUnits);
     await this.loading;
     this.ready = true;
   }
 
-  private async loadEverything(entries: ModelEntry[]): Promise<void> {
+  private async loadEverything(entries: ModelEntry[], includeDemoUnits: boolean): Promise<void> {
     const loader = new FBXLoader();
     const seen = new Set<string>();
 
@@ -116,7 +119,7 @@ export class ModelLoader {
       })
     );
 
-    await this.loadUnitModels(loader);
+    await this.loadUnitModels(loader, includeDemoUnits);
   }
 
   private async loadFbx(
@@ -133,7 +136,7 @@ export class ModelLoader {
     return root;
   }
 
-  private async loadUnitModels(loader: FBXLoader): Promise<void> {
+  private async loadUnitModels(loader: FBXLoader, includeDemoUnits: boolean): Promise<void> {
     const jobs: {
       id: string;
       staticUrl: string | null;
@@ -160,6 +163,18 @@ export class ModelLoader {
         riggedUrl: mobRiggedUrl(mobId),
         riggedPath: mobRiggedPath(mobId),
       });
+    }
+
+    if (includeDemoUnits) {
+      for (const demoId of ALL_DEMO_UNIT_IDS) {
+        jobs.push({
+          id: unitModelId('demo', demoId),
+          staticUrl: null,
+          staticPath: null,
+          riggedUrl: demoRiggedUrl(demoId),
+          riggedPath: demoRiggedPath(demoId),
+        });
+      }
     }
 
     await Promise.all(

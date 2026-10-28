@@ -1,7 +1,10 @@
 import {
+  ALL_DEMO_UNIT_IDS,
   ALL_HERO_IDS,
   ALL_MOB_IDS,
   ALL_MODELS,
+  demoRiggedPath,
+  demoRiggedUrl,
   heroRiggedPath,
   heroRiggedUrl,
   heroStaticPath,
@@ -14,7 +17,7 @@ import {
 import type { AssetItem } from './LoadProgress';
 import { getTexturesForModel } from './ModelTextures';
 
-export function buildAssetManifest(): AssetItem[] {
+export function buildAssetManifest(includeDemoUnits = false): AssetItem[] {
   const seen = new Set<string>();
   const items: AssetItem[] = [];
 
@@ -50,6 +53,13 @@ export function buildAssetManifest(): AssetItem[] {
     addTextures(mobRiggedPath(mobId), `mob:${mobId}:rig`);
     add(mobStaticUrl(mobId), `mob:${mobId}:static`, 'model');
     addTextures(mobStaticPath(mobId), `mob:${mobId}:static`);
+  }
+
+  if (includeDemoUnits) {
+    for (const demoId of ALL_DEMO_UNIT_IDS) {
+      add(demoRiggedUrl(demoId), `demo:${demoId}:rig`, 'model');
+      addTextures(demoRiggedPath(demoId), `demo:${demoId}:rig`);
+    }
   }
 
   return items;
